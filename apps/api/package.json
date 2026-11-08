@@ -1,0 +1,25 @@
+{
+  "name": "orbit-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:booking": "tsx --test test/booking.test.ts",
+    "test:race": "tsx scripts/booking-race.ts"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.5",
+    "jsonwebtoken": "^9.0.2",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3"
+  }
+}
