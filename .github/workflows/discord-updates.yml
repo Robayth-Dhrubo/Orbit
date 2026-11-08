@@ -1,0 +1,61 @@
+name: Discord project updates
+
+on:
+  push:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+  issues:
+    types: [opened, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send update to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REF_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "Missing DISCORD_WEBHOOK_URL repository secret." >&2
+            exit 1
+          fi
+
+          case "$EVENT_NAME" in
+            push)
+              title="New push to ${REPOSITORY}"
+              url="${SERVER_URL}/${REPOSITORY}/commit/${SHA}"
+              ;;
+            pull_request)
+              title="Pull request ${EVENT_ACTION}: ${REPOSITORY}#${PR_NUMBER}"
+              url="${SERVER_URL}/${REPOSITORY}/pull/${PR_NUMBER}"
+              ;;
+            issues)
+              title="Issue ${EVENT_ACTION}: ${REPOSITORY}#${ISSUE_NUMBER}"
+              url="${SERVER_URL}/${REPOSITORY}/issues/${ISSUE_NUMBER}"
+              ;;
+            *)
+              title="Repository update: ${REPOSITORY}"
+              url="${SERVER_URL}/${REPOSITORY}"
+              ;;
+          esac
+
+          payload=$(jq -n \
+            --arg title "$title" \
+            --arg url "$url" \
+            --arg actor "$ACTOR" \
+            --arg ref "$REF_NAME" \
+            '{embeds: [{title: $title, url: $url, description: ("By **" + $actor + "** · `" + $ref + "`")}]}')
+
+          curl --fail --silent --show-error --retry 3 \
+            -H 'Content-Type: application/json' \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK_URL"
