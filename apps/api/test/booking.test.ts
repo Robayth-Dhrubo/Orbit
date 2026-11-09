@@ -159,6 +159,7 @@ test("appointment router and transactions on PostgreSQL", async (t) => {
       null, [], {}, { ...request, slotId: "invalid" }, { ...request, topic: " " },
       { ...request, topic: "x".repeat(201) }, { ...request, notes: null },
       { ...request, notes: "x".repeat(4001) }, { ...request, notes: "embedded\0nul" },
+      { ...request, topic: "unpaired\uD800" }, { ...request, notes: "unpaired\uDC00" },
       { ...request, studentId: other.id },
     ]) {
       await expectError(await book(body, "bad-body"), 400, "INVALID_BOOKING");
@@ -170,6 +171,36 @@ test("appointment router and transactions on PostgreSQL", async (t) => {
     assert.equal(await countBookings(pastSlot), 0);
     const boundary = await book({ slotId, topic: "x".repeat(200), notes: "x".repeat(4000) }, "k".repeat(255));
     assert.equal(boundary.status, 201);
+  });
+
+  await t.test("rejects unsupported encodings without losing valid Unicode", async () => {
+    const slotId = await slot();
+    const request = { slotId, topic: "Geometry 🧭", notes: "Bring a règle" };
+    const unsupportedHeaders: Record<string, string>[] = [
+      { "Content-Type": "application/json; charset=iso-8859-1" },
+      { "Content-Type": "application/json", "Content-Encoding": "invalid" },
+    ];
+    for (const headers of unsupportedHeaders) {
+      const response = await fetch(baseUrl + "/appointments", {
+        method: "POST",
+        headers: {
+          ...headers,
+          Authorization: "Bearer " + student.token,
+          "Idempotency-Key": "encoding",
+        },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(10_000),
+      });
+      await expectError(response, 415, "UNSUPPORTED_MEDIA_TYPE");
+    }
+    assert.equal(await countBookings(slotId), 0);
+    const valid = await book(request, "encoding");
+    assert.equal(valid.status, 201);
+    const { rows } = await pool.query(
+      "SELECT topic, notes FROM appointments WHERE slot_id = $1",
+      [slotId],
+    );
+    assert.deepEqual(rows, [{ topic: request.topic, notes: request.notes }]);
   });
 
   await t.test("rolls back a booking if idempotency persistence fails and permits a retry", async () => {

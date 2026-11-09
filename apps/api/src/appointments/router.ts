@@ -6,6 +6,7 @@ import { type BookingRequest } from "./repository.js";
 import { AppointmentError, bookAppointment, cancelAppointment } from "./service.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INVALID_TEXT = /[\u0000\uD800-\uDFFF]/u;
 
 function studentId(response: Response): string {
   const auth = response.locals.auth;
@@ -27,7 +28,7 @@ function readBookingRequest(body: unknown): BookingRequest {
     typeof slotId !== "string" || !UUID.test(slotId) ||
     typeof topic !== "string" || topic.trim().length === 0 || topic.length > 200 ||
     (notes !== undefined && (typeof notes !== "string" || notes.length > 4000)) ||
-    topic.includes("\0") || notes?.includes("\0")) {
+    INVALID_TEXT.test(topic) || (notes !== undefined && INVALID_TEXT.test(notes))) {
     throw new AppointmentError(400, "INVALID_BOOKING", "Provide a valid slot ID, topic, and optional notes.");
   }
   return { slotId, topic, notes };
@@ -56,6 +57,8 @@ const respondToError: ErrorRequestHandler = (error, _request, response, next) =>
     problem = new AppointmentError(400, "INVALID_BOOKING", "Provide valid JSON.");
   } else if (error?.type === "entity.too.large") {
     problem = new AppointmentError(413, "PAYLOAD_TOO_LARGE", "The appointment request is too large.");
+  } else if (error?.type === "charset.unsupported" || error?.type === "encoding.unsupported") {
+    problem = new AppointmentError(415, "UNSUPPORTED_MEDIA_TYPE", "Use a supported JSON charset and content encoding.");
   }
   response.status(problem.status).json({
     error: { code: problem.code, message: problem.message, correlationId: randomUUID() },
