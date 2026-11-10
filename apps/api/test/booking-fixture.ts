@@ -5,62 +5,15 @@ import express, { type RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { Pool } from 'pg';
 import { createAppointmentRouter } from '../src/appointments/router.js';
+import { migrate } from '../src/database/migrate.js';
 
 type Role = 'student' | 'tutor';
-
-const fixtureDdl = `
-  CREATE TABLE users (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    email text NOT NULL UNIQUE,
-    password_hash text NOT NULL,
-    role text NOT NULL CHECK (role IN ('student', 'tutor'))
-  );
-
-  CREATE TABLE tutor_profiles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL UNIQUE REFERENCES users(id),
-    display_name text NOT NULL
-  );
-
-  CREATE TABLE availability_slots (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tutor_id uuid NOT NULL REFERENCES tutor_profiles(id),
-    starts_at timestamptz NOT NULL,
-    ends_at timestamptz NOT NULL,
-    CONSTRAINT availability_slots_ends_after_starts CHECK (ends_at > starts_at)
-  );
-
-  CREATE TABLE appointments (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    slot_id uuid NOT NULL REFERENCES availability_slots(id),
-    student_id uuid NOT NULL REFERENCES users(id),
-    topic text NOT NULL,
-    notes text,
-    status text NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
-    updated_at timestamptz NOT NULL DEFAULT now()
-  );
-
-  CREATE UNIQUE INDEX one_confirmed_appointment_per_slot
-    ON appointments (slot_id) WHERE status = 'confirmed';
-
-  CREATE TABLE idempotency_records (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL REFERENCES users(id),
-    operation text NOT NULL,
-    idempotency_key text NOT NULL,
-    request_hash text NOT NULL,
-    response_status integer NOT NULL CHECK (response_status BETWEEN 100 AND 599),
-    response_body jsonb NOT NULL,
-    CONSTRAINT idempotency_records_user_operation_key_unique
-      UNIQUE (user_id, operation, idempotency_key)
-  );
-`;
 
 // Availability creation and overlap prevention belong to the availability feature.
 export async function startBookingFixture({ databaseUrl }: { databaseUrl: string }) {
   const schema = `booking_fixture_${randomBytes(12).toString('hex')}`;
   const connectionUrl = new URL(databaseUrl);
-  connectionUrl.searchParams.set('options', `-c search_path=${schema}`);
+  connectionUrl.searchParams.set('options', `-c search_path=${schema},public -c timezone=UTC`);
 
   const admin = new Pool({ connectionString: databaseUrl, max: 1 });
   const pool = new Pool({ connectionString: connectionUrl.href, max: 20 });
@@ -99,7 +52,7 @@ export async function startBookingFixture({ databaseUrl }: { databaseUrl: string
     schemaCreated = true;
     const { rows } = await pool.query<{ schema: string }>('SELECT current_schema() AS schema');
     if (rows[0]?.schema !== schema) throw new Error('Could not isolate the booking fixture schema.');
-    await pool.query(fixtureDdl);
+    await migrate(pool);
 
     const secret = randomBytes(32);
     const issuer = 'orbit-booking-fixture';

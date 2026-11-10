@@ -1,5 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
+export { inTransaction } from "../database/transaction.js";
+
 export type BookingRequest = {
   slotId: string;
   topic: string;
@@ -19,26 +21,6 @@ type StoredBooking = {
 };
 
 const BOOK_OPERATION = "POST /appointments";
-
-export async function inTransaction<T>(pool: Pool, run: (client: PoolClient) => Promise<T>) {
-  const client = await pool.connect();
-  let broken = false;
-  try {
-    await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
-    const result = await run(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      broken = true;
-    }
-    throw error;
-  } finally {
-    client.release(broken);
-  }
-}
 
 export async function findBookingForKey(client: PoolClient, studentId: string, key: string) {
   // A transaction-scoped advisory lock also covers the first request, when no record exists.
@@ -108,4 +90,44 @@ export async function cancelOwnedAppointment(client: PoolClient, studentId: stri
       "WHERE id = $1 AND student_id = $2 AND status = 'confirmed'",
     [appointmentId, studentId],
   );
+}
+
+export type AppointmentRecord = {
+  appointmentId: string;
+  slotId: string;
+  studentId: string;
+  topic: string;
+  notes: string | null;
+  status: "confirmed" | "cancelled";
+};
+
+const appointmentColumns =
+  'id AS "appointmentId", slot_id AS "slotId", student_id AS "studentId", topic, notes, status';
+
+export async function findConfirmedAppointment(db: Pool | PoolClient, slotId: string) {
+  const { rows } = await db.query<AppointmentRecord>(
+    `SELECT ${appointmentColumns} FROM appointments WHERE slot_id = $1 AND status = 'confirmed'`,
+    [slotId],
+  );
+  return rows[0] as AppointmentRecord | undefined;
+}
+
+export async function findOwnedAppointment(
+  db: Pool | PoolClient,
+  studentId: string,
+  appointmentId: string,
+) {
+  const { rows } = await db.query<AppointmentRecord>(
+    `SELECT ${appointmentColumns} FROM appointments WHERE id = $1 AND student_id = $2`,
+    [appointmentId, studentId],
+  );
+  return rows[0] as AppointmentRecord | undefined;
+}
+
+export async function listOwnedAppointments(db: Pool | PoolClient, studentId: string) {
+  const { rows } = await db.query<AppointmentRecord>(
+    `SELECT ${appointmentColumns} FROM appointments WHERE student_id = $1 ORDER BY id`,
+    [studentId],
+  );
+  return rows;
 }
