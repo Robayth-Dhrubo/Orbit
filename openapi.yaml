@@ -1,0 +1,299 @@
+openapi: 3.0.3
+info:
+  title: ORBIT Tutor Booking API
+  version: 0.2.0
+  description: |
+    SOEN 387 Phase 2 — tutor discovery, authenticated slot publication,
+    transaction-safe booking, cancellation, and replay-safe idempotency.
+servers:
+  - url: http://localhost:3000
+security: []
+tags:
+  - name: Authentication
+  - name: Tutors
+  - name: Appointments
+paths:
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a student or tutor
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created; signed JWT issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSuccess' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Sign in and receive a JWT
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSuccess' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /tutors:
+    get:
+      tags: [Tutors]
+      summary: List tutor profiles
+      operationId: listTutors
+      responses:
+        '200':
+          description: Tutor profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tutor' }
+  /tutors/{tutorId}/slots:
+    parameters:
+      - $ref: '#/components/parameters/TutorId'
+    get:
+      tags: [Tutors]
+      summary: List future slots that have no confirmed appointment
+      operationId: listAvailableSlots
+      responses:
+        '200':
+          description: Available slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Slot' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Tutors]
+      security: [{ bearerAuth: [] }]
+      summary: Publish a slot for the authenticated tutor's own profile
+      operationId: createSlot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewSlot' }
+      responses:
+        '201':
+          description: Slot published
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /appointments:
+    get:
+      tags: [Appointments]
+      security: [{ bearerAuth: [] }]
+      summary: List the authenticated student's own appointments
+      operationId: listMyAppointments
+      responses:
+        '200':
+          description: Appointments including cancelled history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Appointment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Appointments]
+      security: [{ bearerAuth: [] }]
+      summary: Atomically book an available slot
+      description: |
+        Within one PostgreSQL transaction, serializes requests per user and key,
+        locks the target slot, checks availability, creates one confirmed record,
+        and stores the response. Identical same-key retries replay the original
+        201 response. A different request using an existing key receives 409.
+      operationId: bookAppointment
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 255, pattern: '^[\x21-\x2B\x2D-\x7E]+$' }
+          description: One visible ASCII token; commas are not allowed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingRequest' }
+      responses:
+        '201':
+          description: Booking confirmed or identical idempotency replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingSuccess' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMedia' }
+  /appointments/{appointmentId}:
+    delete:
+      tags: [Appointments]
+      security: [{ bearerAuth: [] }]
+      summary: Cancel a student's own appointment (repeated cancels are safe)
+      operationId: cancelAppointment
+      parameters:
+        - in: path
+          name: appointmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Cancelled or already cancelled; no response body }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    TutorId:
+      in: path
+      name: tutorId
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    User:
+      type: object
+      required: [id, email, role]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { type: string, enum: [student, tutor] }
+    RegisterRequest:
+      type: object
+      required: [email, password, role]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, description: Maximum 72 UTF-8 bytes }
+        role: { type: string, enum: [student, tutor] }
+        displayName: { type: string, minLength: 1, maxLength: 120, description: Required for tutor; forbidden for student }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    AuthSuccess:
+      type: object
+      required: [user, token, tokenType, expiresIn]
+      additionalProperties: false
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        token: { type: string, description: Signed one-hour JWT }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, example: 3600 }
+    Tutor:
+      type: object
+      required: [id, userId, name, subject]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        name: { type: string, description: Tutor profile display name }
+        subject: { type: string, description: Empty until course metadata is part of the schema }
+    Slot:
+      type: object
+      required: [id, tutorId, startTime, endTime]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        tutorId: { type: string, format: uuid }
+        startTime: { type: string, format: date-time, description: UTC ISO 8601 }
+        endTime: { type: string, format: date-time, description: UTC ISO 8601 }
+    NewSlot:
+      type: object
+      required: [startTime, endTime]
+      additionalProperties: false
+      properties:
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+    BookingRequest:
+      type: object
+      required: [slotId, topic]
+      additionalProperties: false
+      properties:
+        slotId: { type: string, format: uuid }
+        topic: { type: string, minLength: 1, maxLength: 200 }
+        notes: { type: string, maxLength: 4000 }
+    BookingSuccess:
+      type: object
+      required: [appointmentId, slotId, status]
+      additionalProperties: false
+      properties:
+        appointmentId: { type: string, format: uuid }
+        slotId: { type: string, format: uuid }
+        status: { type: string, enum: [confirmed] }
+    Appointment:
+      type: object
+      required: [appointmentId, slotId, status, topic]
+      additionalProperties: false
+      properties:
+        appointmentId: { type: string, format: uuid }
+        slotId: { type: string, format: uuid }
+        status: { type: string, enum: [confirmed, cancelled] }
+        topic: { type: string }
+        notes: { type: string }
+    Error:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, correlationId]
+          additionalProperties: false
+          properties:
+            code: { type: string }
+            message: { type: string }
+            correlationId: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Invalid field, identifier, or JSON request
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Missing, invalid, or expired JWT, or bad credentials
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Valid login but insufficient role or not resource owner
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Resource does not exist or is hidden for ownership privacy
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Unique email, overlapping availability, booked slot, or idempotency collision
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    PayloadTooLarge:
+      description: Request exceeds JSON size limit
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    UnsupportedMedia:
+      description: Unsupported charset or encoding
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
