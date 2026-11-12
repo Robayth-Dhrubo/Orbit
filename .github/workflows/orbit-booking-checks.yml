@@ -48,8 +48,10 @@ jobs:
       - name: Run booking tests and two race runs
         env:
           TEST_DATABASE_URL: postgresql://orbit:orbit_test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/orbit_test
+        
         run: |
           npm run test:database
           npm run test:booking
+          npm run test:integration
           npm run test:race
           npm run test:race
