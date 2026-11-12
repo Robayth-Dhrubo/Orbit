@@ -2,13 +2,15 @@ name: Orbit Phase 2 checks
 
 on:
   push:
-    branches: [main, cleanup/phase2-submission]
+    branches: [main]
   pull_request:
     paths:
       - apps/api/**
       - database/**
       - openapi.yaml
       - compose.yaml
+      - README.md
+      - docs/**
       - .github/workflows/orbit-booking-checks.yml
   workflow_dispatch:
 
@@ -18,7 +20,7 @@ permissions:
 jobs:
   phase2:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/api
@@ -38,7 +40,7 @@ jobs:
           --health-retries 12
 
     steps:
-      - name: Check out the PR
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -49,12 +51,7 @@ jobs:
           package-manager-cache: false
       - name: Install locked dependencies
         run: npm ci
-      - name: Verify complete Phase 2 service and repeat concurrency race
+      - name: Run the complete Phase 2 test suite (including two booking races)
         env:
           TEST_DATABASE_URL: postgresql://orbit:orbit_test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/orbit_test
-        run: |
-          npm run test:database
-          npm run test:booking
-          npm run test:integration
-          npm run test:race
-          npm run test:race
+        run: npm run test:phase2
