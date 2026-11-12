@@ -8,6 +8,7 @@ import type {
 import type {
   AuthenticatedUser
 } from './tutors.controller.js';
+import { AppointmentServiceError } from '../services/appointments.service.js';
 
 // Service interface for appointment operations.
 // The actual implementation will integrate
@@ -55,9 +56,11 @@ export function createAppointmentController(
     try {
       const user = getAuthenticatedUser(req);
 
-      const idempotencyKey = req.header(
-        'Idempotency-Key'
-      );
+      const keys = req.headersDistinct['idempotency-key'] ?? [];
+      if (keys.length !== 1 || !/^[!-~]{1,255}$/.test(keys[0]) || keys[0].includes(',')) {
+        throw new AppointmentServiceError(400, 'INVALID_IDEMPOTENCY_KEY', 'Provide one valid Idempotency-Key header');
+      }
+      const idempotencyKey = keys[0];
 
       const appointment =
         await service.bookAppointment(

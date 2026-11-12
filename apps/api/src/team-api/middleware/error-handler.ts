@@ -51,6 +51,11 @@ export const errorHandler: ErrorRequestHandler = (
   res: Response,
   _next: NextFunction
 ) => {
+  if (res.headersSent) {
+    _next(error);
+    return;
+  }
+
   const requestId =
     String(res.locals.requestId || randomUUID());
 
@@ -85,6 +90,22 @@ export const errorHandler: ErrorRequestHandler = (
       }
     });
 
+    return;
+  }
+
+  const parserError = typeof error === 'object' && error !== null
+    ? error as { type?: string; status?: number }
+    : undefined;
+  let problem: { status: number; code: string; message: string } | undefined;
+  if (parserError?.type === 'entity.too.large') {
+    problem = { status: 413, code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large' };
+  } else if (parserError?.type === 'charset.unsupported' || parserError?.type === 'encoding.unsupported') {
+    problem = { status: 415, code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Use a supported JSON charset and content encoding' };
+  } else if (error instanceof URIError && parserError?.status === 400) {
+    problem = { status: 400, code: 'INVALID_ID', message: 'Invalid URL identifier encoding' };
+  }
+  if (problem) {
+    res.status(problem.status).json({ error: { code: problem.code, message: problem.message, requestId } });
     return;
   }
 

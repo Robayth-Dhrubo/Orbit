@@ -1,6 +1,6 @@
 # Azmain: issue #8 implementation record
 
-This record describes AI-assisted work for the PostgreSQL/schema/repository task.
+This historical record describes AI-assisted work for the PostgreSQL/schema/repository task before full team integration. Current completion and test evidence are in [the Phase 2 verification record](phase2-verification.md); the handoff notes below describe the state at the original contribution.
 It is not a claim that Azmain independently wrote or has already reviewed every
 line. The implementation and explanations should be reviewed before the team
 submits its individual contribution statement.
@@ -62,7 +62,7 @@ Validation status must be taken from the latest CI run for this branch. A
 TypeScript pass alone is not evidence that PostgreSQL behavior passed. Test JWTs
 in the booking harness are not Robayth's production authentication integration.
 
-## Remaining team integration
+## Original team integration handoff
 
 - Robayth: wire credential lookup/bcrypt comparison into authentication and align
   the published API/error contract; incorporate tested setup instructions.

@@ -1,62 +1,59 @@
-# ORBIT API (`apps/api`)
+# ORBIT API
 
-The primary Express & TypeScript backend for the ORBIT Tutor Appointment Booking Service.
+The runnable Phase 2 service lives here. Start with the [repository setup guide](../../README.md) and [database instructions](../../docs/database-setup.md). Node.js 22+ and PostgreSQL are required. Install the locked dependencies once in `apps/api`. The API uses a layered Express and TypeScript architecture with centralized error handling and correlation IDs; its entrypoint serves `GET /health` and `GET /openapi.yaml`.
 
-## Architecture
+The original core API modules now live in `src/team-api`, and their tests live in `test/core`.
 
-The API implements a clean layered architecture with centralized error handling and correlation IDs:
-
-* **Entrypoint**: `src/server.ts` & `src/app.ts` (Express 5, JSON parsing limit 32kb, `GET /health`, `GET /openapi.yaml`).
-* **Authentication & Authorization**: `src/auth/auth.ts` (bcryptjs, JWT HS256, database role verification).
-* **Appointments & Atomic Booking**: `src/appointments/` (transaction isolation, row locks, idempotency key cache).
-* **Tutors & Slots**: `src/team-api/` & `src/tutors/` (tutor profiles, non-overlapping availability slots).
-* **Database Layer**: `src/database/` (PostgreSQL connection pool, advisory locks, migration runner, seed script).
-* **Integration Adapters**: `src/integration/team-adapters.ts` (unifies domain services with database repositories).
-
-## Quick Start
-
-### 1. Configure Environment
-
-```bash
+```sh
+npm ci
 cp .env.example .env
-```
-
-Ensure `.env` contains:
-```dotenv
-NODE_ENV=development
-PORT=3000
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/orbit
-DEMO_PASSWORD=your-own-12-character-plus-demo-password
-JWT_SECRET=replace-with-a-random-secret-at-least-32-bytes-long
-TEST_DATABASE_URL=postgresql://TEST_USER:PASSWORD@localhost:5432/orbit_test
-```
-
-### 2. Run Database Migrations & Seeds
-
-```bash
+# Edit .env with your database URLs, signing secret and demo password.
 npm run db:migrate
 npm run db:seed
+npm run dev
 ```
 
-### 3. Start the Server
+`dev` and `start` load `.env` and start `src/server.ts`. The database commands also load `.env`. Test commands use the shell's `TEST_DATABASE_URL`; the tests must use a separate disposable database:
 
-```bash
-npm run dev     # Development mode with tsx hot reload
-# or
-npm start       # Production startup
+```sh
+export TEST_DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/orbit_test'
+npm run test:phase2
 ```
 
-## Available Scripts
+| Command | Purpose |
+|---|---|
+| `typecheck` | API TypeScript validation |
+| `test:auth` | Credentials, tokens and public auth response checks |
+| `validate:openapi` | Published OpenAPI validity |
+| `test:contract` | Contract and response conformance |
+| `test:database` | Real migrations, seed/reset, constraints and repositories |
+| `test:booking` | Atomic booking, cancellation, replay and rollback |
+| `test:integration` | Full application against real PostgreSQL and JWT middleware |
+| `test:race` | Twenty distinct students compete for a fresh slot |
+| `test:team` | Core service and HTTP tests in `test/core` |
+| `test:phase2` | All milestone checks from this single package, including two fresh race runs |
 
-| Script | Command | Purpose |
-|---|---|---|
-| `npm run typecheck` | `tsc --noEmit` | Verifies TypeScript types with zero errors |
-| `npm run test:auth` | `tsx --test test/auth.test.ts` | Unit tests for password hashing, JWT signing, token expiry & forgery |
-| `npm run test:booking` | `tsx --test test/booking.test.ts` | Tests atomic booking validation, idempotency & cancellation |
-| `npm run test:database` | `tsx --test test/database.test.ts` | Integration tests for PostgreSQL repositories & transactions |
-| `npm run test:integration` | `tsx --test test/integration.test.ts` | End-to-end HTTP tests with real JWTs and database persistence |
-| `npm run test:race` | `tsx scripts/booking-race.ts` | 20-student concurrent race test against a single slot |
-| `npm run test:phase2` | Full verification | Runs typecheck and all 5 test suites sequentially |
-| `npm run db:migrate` | `scripts/db-migrate.ts` | Applies SQL migrations with advisory locking |
-| `npm run db:seed` | `scripts/db-seed.ts` | Seeds 23 demo accounts, tutor profiles, and future slots |
-| `npm run db:reset` | `scripts/db-seed.ts --reset` | Resets the demo fixtures (`--confirm` required) |
+The [verification record](../../docs/phase2-verification.md) records actual execution results. The [demo](../../docs/phase2-demo.md) exercises the service manually. API documentation is available at `/docs`; the source is [`../../openapi.yaml`](../../openapi.yaml), served at `/openapi.yaml`.
+
+## Booking transaction contract
+
+`src/appointments/service.ts` is the single transaction-sensitive booking/cancellation implementation. Routers call it with identity taken from verified auth middleware, never an owner ID supplied by the client.
+
+Booking first serializes the `(authenticated student, operation, idempotency key)` scope, then locks the availability slot. The availability check, appointment insertion and stored successful response use the same database connection and transaction. The response is returned only after commit. Slot row locking coordinates competing requests across API instances; the `one_confirmed_appointment_per_slot` partial unique index is an independent safeguard.
+
+The same user/key/canonical input returns the original `201` and appointment ID. Different input with that key returns `409 IDEMPOTENCY_CONFLICT`. Idempotency records are not shared between users. A new key for an occupied slot returns `409 SLOT_ALREADY_BOOKED`.
+
+Cancellation looks up the owned appointment and takes the same slot lock before changing its status. Owner retries return `204`; unknown and other-owned appointments return `404`. Cancelled rows remain in history and the slot can be rebooked. Replaying a successful original booking key after cancellation still returns the original stored receipt; fetch the owner's appointment list for current state.
+
+Slot publication uses PostgreSQL's exclusion constraint to reject overlapping tutor availability. Intervals use `[start, end)`, allowing adjacent slots. Published slot times are not edited while bookings rely on them.
+
+## Layer boundaries
+
+- `src/app.ts` assembles middleware, routes, documentation and error handling.
+- `src/auth/` hashes and verifies passwords, issues and verifies JWTs, and validates current database identity and role.
+- `src/team-api/` contains canonical core controllers, routes and domain service interfaces.
+- `src/integration/` adapts these interfaces to concrete repository and atomic booking functions.
+- `src/users/`, `src/tutors/` and `src/appointments/repository.ts` contain parameterized SQL; `src/appointments/` implements atomic booking and cancellation.
+- `src/database/` owns the PostgreSQL connection pool, shared transactions, advisory locks, migrations and demo data.
+
+No external HTTP service runs inside a booking transaction. Resend/outbox integration belongs to the later project phase.

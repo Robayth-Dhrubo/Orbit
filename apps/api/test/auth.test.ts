@@ -12,7 +12,7 @@ const studentId = "10000000-0000-4000-8000-000000000001";
 const users = new Map<string, { id: string; email: string; role: "student" | "tutor"; passwordHash: string }>();
 const sqlCalls: string[] = [];
 
-const poolImpl = {
+const pool = {
   async query(sql: string, values: unknown[] = []) {
     sqlCalls.push(sql);
     if (sql.includes("SELECT id, email, role, password_hash")) {
@@ -34,16 +34,16 @@ const poolImpl = {
     throw new Error(`Unexpected SQL in auth test: ${sql}`);
   },
   async connect() {
+    const owner = pool;
     return {
       async query(sql: string, values?: unknown[]) {
         if (sql.startsWith("BEGIN") || sql === "COMMIT" || sql === "ROLLBACK") return { rows: [], rowCount: 0 };
-        return poolImpl.query(sql, values);
+        return owner.query(sql, values);
       },
       release() {},
     };
   },
-};
-const pool = poolImpl as unknown as Pool;
+} as unknown as Pool;
 
 const app = express();
 app.use(express.json());
@@ -76,6 +76,7 @@ async function login(password: string) {
 test("correct password issues a signed JWT without exposing password hashes", async () => {
   const response = await login("seed-password-123456");
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
   const json = await response.json() as { token: string; user: Record<string, unknown> };
   assert.equal(json.user.id, studentId);
   assert.equal(json.user.passwordHash, undefined);
@@ -83,6 +84,52 @@ test("correct password issues a signed JWT without exposing password hashes", as
   const protectedResponse = await fetch(`${base}/protected`, { headers: { Authorization: `Bearer ${json.token}` } });
   assert.equal(protectedResponse.status, 200);
   assert.deepEqual(await protectedResponse.json(), { userId: studentId, role: "student" });
+});
+
+test("JWT expiry is mandatory and issuer, audience and algorithm are enforced", async () => {
+  const options = { algorithm: "HS256" as const, audience: "orbit-client", issuer: "orbit-api", subject: studentId, expiresIn: 3600 };
+  const tokens = [
+    jwt.sign({ role: "student" }, secret, { algorithm: "HS256", audience: "orbit-client", issuer: "orbit-api", subject: studentId }),
+    jwt.sign({ role: "student" }, secret, { ...options, audience: "other-client" }),
+    jwt.sign({ role: "student" }, secret, { ...options, issuer: "other-api" }),
+    jwt.sign({ role: "student" }, secret, { ...options, algorithm: "HS384" }),
+    jwt.sign({ role: "student" }, secret, { ...options, subject: "10000000-0000-4000-8000-999999999999" }),
+  ];
+  for (const token of tokens) {
+    const response = await fetch(`${base}/protected`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get("www-authenticate"), "Bearer");
+  }
+});
+
+test("invalid registration fields and text are rejected before persistence", async () => {
+  const initialCount = users.size;
+  const valid = { email: "new.student@orbit.test", password: "new-student-password", role: "student" };
+  const invalid = [
+    { ...valid, role: "admin" }, { ...valid, role: undefined },
+    { ...valid, password: "short" }, { ...valid, password: "x".repeat(73) },
+    { ...valid, password: "x".repeat(11) + "\ud800" },
+    { ...valid, email: "null\u0000@orbit.test" },
+    { ...valid, role: "tutor", displayName: "invalid\u0000name" },
+    { ...valid, role: "tutor", displayName: "  " },
+    { ...valid, displayName: "Students cannot set this" },
+    { ...valid, userId: studentId },
+  ];
+  for (const body of invalid) {
+    const response = await fetch(`${base}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(response.status, 400, await response.text());
+  }
+  assert.equal(users.size, initialCount);
+});
+
+test("unknown-account login is indistinguishable from a wrong password and bounded inputs are enforced", async () => {
+  const wrong = await login("wrong-password");
+  const unknown = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "unknown@orbit.test", password: "wrong-password" }) });
+  assert.equal(unknown.status, wrong.status);
+  assert.deepEqual(await unknown.json(), await wrong.json());
+  assert.equal((await login("x".repeat(73))).status, 400);
+  assert.equal((await login("invalid\u0000password")).status, 400);
 });
 
 test("wrong password and missing JWT are rejected", async () => {

@@ -39,7 +39,7 @@ export interface BookingInput {
   studentId: string;
   slotId: string;
   topic: string;
-  notes: string;
+  notes?: string;
   idempotencyKey: string;
 }
 
@@ -163,6 +163,9 @@ export function createAppointmentService(
     }
 
     const body = data as Record<string, unknown>;
+    if (Object.keys(body).some(key => !['slotId', 'topic', 'notes'].includes(key))) {
+      throw new AppointmentServiceError(400, 'INVALID_REQUEST', 'Only slotId, topic and notes are accepted');
+    }
 
     // Step 3: Validate slot identifier
     const slotId = validateId(
@@ -174,7 +177,7 @@ export function createAppointmentService(
     if (
       typeof body.topic !== 'string' ||
       !body.topic.trim() ||
-      body.topic.length > 120
+      body.topic.length > 200 || /[\u0000\uD800-\uDFFF]/u.test(body.topic)
     ) {
       throw new AppointmentServiceError(
         400,
@@ -188,21 +191,21 @@ export function createAppointmentService(
       body.notes !== undefined &&
       (
         typeof body.notes !== 'string' ||
-        body.notes.length > 1000
+        body.notes.length > 4000 || /[\u0000\uD800-\uDFFF]/u.test(body.notes)
       )
     ) {
       throw new AppointmentServiceError(
         400,
         'INVALID_NOTES',
-        'Notes must be a string of at most 1000 characters'
+        'Notes must be a string of at most 4000 characters'
       );
     }
 
     // Step 6: Validate idempotency key
     if (
       typeof idempotencyKey !== 'string' ||
-      !idempotencyKey.trim() ||
-      idempotencyKey.length > 200
+      !/^[!-~]{1,255}$/.test(idempotencyKey) ||
+      idempotencyKey.includes(',')
     ) {
       throw new AppointmentServiceError(
         400,
@@ -220,12 +223,12 @@ export function createAppointmentService(
       await atomicBooking.bookAtomically({
         studentId,
         slotId,
-        topic: body.topic.trim(),
+        topic: body.topic,
         notes:
           typeof body.notes === 'string'
             ? body.notes
-            : '',
-        idempotencyKey: idempotencyKey.trim()
+            : undefined,
+        idempotencyKey
       });
 
     // Step 9: Return booking response

@@ -5,6 +5,8 @@ info:
   description: |
     SOEN 387 Phase 2 — tutor discovery, authenticated slot publication,
     transaction-safe booking, cancellation, and replay-safe idempotency.
+    Responses include X-Request-Id; error.correlationId is the same identifier.
+    All returned dates are ISO 8601 UTC. No query parameters are supported.
 servers:
   - url: http://localhost:3000
 security: []
@@ -15,7 +17,8 @@ tags:
 paths:
   /auth/register:
     post:
-      tags: [Authentication]
+      tags:
+        - Authentication
       summary: Register a student or tutor
       operationId: register
       requestBody:
@@ -23,103 +26,157 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        '201':
+        "201":
           description: Account created; signed JWT issued
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuthSuccess' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMedia"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/login:
     post:
-      tags: [Authentication]
+      tags:
+        - Authentication
       summary: Sign in and receive a JWT
       operationId: login
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/LoginRequest' }
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
       responses:
-        '200':
+        "200":
           description: Authentication successful
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuthSuccess' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMedia"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /tutors:
     get:
-      tags: [Tutors]
+      tags:
+        - Tutors
       summary: List tutor profiles
       operationId: listTutors
       responses:
-        '200':
+        "200":
           description: Tutor profiles
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Tutor' }
+                items:
+                  $ref: "#/components/schemas/Tutor"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /tutors/{tutorId}/slots:
     parameters:
-      - $ref: '#/components/parameters/TutorId'
+      - $ref: "#/components/parameters/TutorId"
     get:
-      tags: [Tutors]
+      tags:
+        - Tutors
       summary: List future slots that have no confirmed appointment
       operationId: listAvailableSlots
       responses:
-        '200':
+        "200":
           description: Available slots
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Slot' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '404': { $ref: '#/components/responses/NotFound' }
+                items:
+                  $ref: "#/components/schemas/Slot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
-      tags: [Tutors]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Tutors
+      security:
+        - bearerAuth: []
       summary: Publish a slot for the authenticated tutor's own profile
       operationId: createSlot
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/NewSlot' }
+            schema:
+              $ref: "#/components/schemas/NewSlot"
       responses:
-        '201':
+        "201":
           description: Slot published
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+              schema:
+                $ref: "#/components/schemas/Slot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMedia"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /appointments:
     get:
-      tags: [Appointments]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Appointments
+      security:
+        - bearerAuth: []
       summary: List the authenticated student's own appointments
       operationId: listMyAppointments
       responses:
-        '200':
+        "200":
           description: Appointments including cancelled history
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Appointment' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
+                items:
+                  $ref: "#/components/schemas/Appointment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
-      tags: [Appointments]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Appointments
+      security:
+        - bearerAuth: []
       summary: Atomically book an available slot
       description: |
         Within one PostgreSQL transaction, serializes requests per user and key,
@@ -131,169 +188,376 @@ paths:
         - in: header
           name: Idempotency-Key
           required: true
-          schema: { type: string, minLength: 1, maxLength: 255, pattern: '^[\x21-\x2B\x2D-\x7E]+$' }
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[\x21-\x2B\x2D-\x7E]+$
           description: One visible ASCII token; commas are not allowed.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/BookingRequest' }
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
       responses:
-        '201':
+        "201":
           description: Booking confirmed or identical idempotency replay
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/BookingSuccess' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
-        '415': { $ref: '#/components/responses/UnsupportedMedia' }
+              schema:
+                $ref: "#/components/schemas/BookingSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMedia"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /appointments/{appointmentId}:
     delete:
-      tags: [Appointments]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Appointments
+      security:
+        - bearerAuth: []
       summary: Cancel a student's own appointment (repeated cancels are safe)
+      description: Other-owned and unknown appointments both return 404. Cancellation releases the slot for a new
+        booking; retrying the original booking key still replays its original response.
       operationId: cancelAppointment
       parameters:
         - in: path
           name: appointmentId
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
       responses:
-        '204': { description: Cancelled or already cancelled; no response body }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        "204":
+          description: Cancelled or already cancelled; no response body
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /health:
+    get:
+      summary: Check that the API process is alive
+      operationId: health
+      responses:
+        "200":
+          description: Process is alive; this is not a database readiness check
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
 components:
   securitySchemes:
-    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Use the token from login or registration. HS256, issuer orbit-api, audience orbit-client, user
+        UUID subject, role and one-hour expiry are verified, together with current database account and role.
   parameters:
     TutorId:
       in: path
       name: tutorId
       required: true
-      schema: { type: string, format: uuid }
+      schema:
+        type: string
+        format: uuid
   schemas:
     User:
       type: object
-      required: [id, email, role]
+      required:
+        - id
+        - email
+        - role
       additionalProperties: false
       properties:
-        id: { type: string, format: uuid }
-        email: { type: string, format: email }
-        role: { type: string, enum: [student, tutor] }
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+            - student
+            - tutor
     RegisterRequest:
       type: object
-      required: [email, password, role]
+      required:
+        - email
+        - password
+        - role
       additionalProperties: false
       properties:
-        email: { type: string, format: email, maxLength: 254 }
-        password: { type: string, minLength: 12, description: Maximum 72 UTF-8 bytes }
-        role: { type: string, enum: [student, tutor] }
-        displayName: { type: string, minLength: 1, maxLength: 120, description: Required for tutor; forbidden for student }
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 12
+          maxLength: 72
+          description: Maximum 72 UTF-8 bytes; control characters and invalid Unicode are rejected
+        role:
+          type: string
+          enum:
+            - student
+            - tutor
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Required for tutor; forbidden for student
     LoginRequest:
       type: object
-      required: [email, password]
+      required:
+        - email
+        - password
       additionalProperties: false
       properties:
-        email: { type: string, format: email }
-        password: { type: string }
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 72
+          description: Maximum 72 UTF-8 bytes
     AuthSuccess:
       type: object
-      required: [user, token, tokenType, expiresIn]
+      required:
+        - user
+        - token
+        - tokenType
+        - expiresIn
       additionalProperties: false
       properties:
-        user: { $ref: '#/components/schemas/User' }
-        token: { type: string, description: Signed one-hour JWT }
-        tokenType: { type: string, enum: [Bearer] }
-        expiresIn: { type: integer, example: 3600 }
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+          description: Signed one-hour JWT
+        tokenType:
+          type: string
+          enum:
+            - Bearer
+        expiresIn:
+          type: integer
+          enum:
+            - 3600
     Tutor:
       type: object
-      required: [id, userId, name, subject]
+      required:
+        - id
+        - displayName
+        - bio
       additionalProperties: false
       properties:
-        id: { type: string, format: uuid }
-        userId: { type: string, format: uuid }
-        name: { type: string, description: Tutor profile display name }
-        subject: { type: string, description: Empty until course metadata is part of the schema }
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          description: Tutor profile display name
+        bio:
+          type: string
     Slot:
       type: object
-      required: [id, tutorId, startTime, endTime]
+      required:
+        - id
+        - tutorId
+        - startTime
+        - endTime
       additionalProperties: false
       properties:
-        id: { type: string, format: uuid }
-        tutorId: { type: string, format: uuid }
-        startTime: { type: string, format: date-time, description: UTC ISO 8601 }
-        endTime: { type: string, format: date-time, description: UTC ISO 8601 }
+        id:
+          type: string
+          format: uuid
+        tutorId:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          format: date-time
+          description: UTC ISO 8601
+        endTime:
+          type: string
+          format: date-time
+          description: UTC ISO 8601
     NewSlot:
       type: object
-      required: [startTime, endTime]
+      required:
+        - startTime
+        - endTime
       additionalProperties: false
       properties:
-        startTime: { type: string, format: date-time }
-        endTime: { type: string, format: date-time }
+        startTime:
+          type: string
+          format: date-time
+          description: Future timestamp with an explicit timezone
+        endTime:
+          type: string
+          format: date-time
+          description: Timestamp after startTime with an explicit timezone
     BookingRequest:
       type: object
-      required: [slotId, topic]
+      required:
+        - slotId
+        - topic
       additionalProperties: false
       properties:
-        slotId: { type: string, format: uuid }
-        topic: { type: string, minLength: 1, maxLength: 200 }
-        notes: { type: string, maxLength: 4000 }
+        slotId:
+          type: string
+          format: uuid
+        topic:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Nonblank; preserved exactly. NUL and invalid Unicode are rejected. Length is bounded to 200
+            UTF-16 code units.
+        notes:
+          type: string
+          maxLength: 4000
+          description: Preserved exactly. Omitted and empty notes have different fingerprints. NUL and invalid Unicode
+            are rejected. Length is bounded to 4000 UTF-16 code units.
     BookingSuccess:
       type: object
-      required: [appointmentId, slotId, status]
+      required:
+        - appointmentId
+        - slotId
+        - status
       additionalProperties: false
       properties:
-        appointmentId: { type: string, format: uuid }
-        slotId: { type: string, format: uuid }
-        status: { type: string, enum: [confirmed] }
+        appointmentId:
+          type: string
+          format: uuid
+        slotId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - confirmed
     Appointment:
       type: object
-      required: [appointmentId, slotId, status, topic]
+      required:
+        - appointmentId
+        - slotId
+        - status
+        - topic
       additionalProperties: false
       properties:
-        appointmentId: { type: string, format: uuid }
-        slotId: { type: string, format: uuid }
-        status: { type: string, enum: [confirmed, cancelled] }
-        topic: { type: string }
-        notes: { type: string }
+        appointmentId:
+          type: string
+          format: uuid
+        slotId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - confirmed
+            - cancelled
+        topic:
+          type: string
+        notes:
+          type: string
     Error:
       type: object
-      required: [error]
+      required:
+        - error
       additionalProperties: false
       properties:
         error:
           type: object
-          required: [code, message, correlationId]
+          required:
+            - code
+            - message
+            - correlationId
           additionalProperties: false
           properties:
-            code: { type: string }
-            message: { type: string }
-            correlationId: { type: string, format: uuid }
+            code:
+              type: string
+            message:
+              type: string
+            correlationId:
+              type: string
+              format: uuid
+              description: Matches X-Request-Id response header
   responses:
     BadRequest:
       description: Invalid field, identifier, or JSON request
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     Unauthorized:
       description: Missing, invalid, or expired JWT, or bad credentials
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     Forbidden:
       description: Valid login but insufficient role or not resource owner
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     NotFound:
       description: Resource does not exist or is hidden for ownership privacy
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     Conflict:
       description: Unique email, overlapping availability, booked slot, or idempotency collision
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     PayloadTooLarge:
       description: Request exceeds JSON size limit
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     UnsupportedMedia:
       description: Unsupported charset or encoding
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: Unexpected server failure; database details and stack traces are never returned
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -21,8 +21,8 @@ export interface AuthenticatedUser {
 export interface Tutor {
   id: string;
   userId: string;
-  name: string;
-  subject: string;
+  displayName: string;
+  bio: string;
 }
 
 // Availability information
@@ -36,7 +36,7 @@ export interface AvailabilitySlot {
 // Repository interface
 // Azmain's functions will be connected later.
 export interface TutorRepository {
-  findAllTutors(): Promise<Tutor[]>;
+  findAllTutors(): Promise<Omit<Tutor, 'userId'>[]>;
 
   findTutorById(
     tutorId: string
@@ -57,7 +57,8 @@ export interface TutorRepository {
   createSlotIfNoOverlap(
     tutorId: string,
     startTime: Date,
-    endTime: Date
+    endTime: Date,
+    ownerUserId: string
   ): Promise<AvailabilitySlot | null>;
 }
 
@@ -92,25 +93,24 @@ function parseDate(
   value: unknown,
   field: string
 ): Date {
-  if (
-    typeof value !== 'string' ||
-    !/(Z|[+-]\d{2}:\d{2})$/i.test(value)
-  ) {
-    throw new TutorServiceError(
-      400,
-      'INVALID_DATE',
-      `${field} must be a date with timezone`
-    );
+  const match = typeof value === 'string'
+    ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/i.exec(value)
+    : null;
+  if (!match) {
+    throw new TutorServiceError(400, 'INVALID_DATE', `${field} must be an ISO date with timezone`);
   }
-
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    throw new TutorServiceError(
-      400,
-      'INVALID_DATE',
-      `Invalid ${field}`
-    );
+  const [, y, m, d, h, min, sec, zone] = match;
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const parsed = new Date(value as string);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1] ||
+      Number(h) > 23 || Number(min) > 59 || Number(sec) > 59 ||
+      (zone.toUpperCase() !== 'Z' && (Number(zone.slice(1, 3)) > 23 || Number(zone.slice(4)) > 59)) ||
+      Number.isNaN(parsed.getTime())) {
+    throw new TutorServiceError(400, 'INVALID_DATE', `Invalid ${field}`);
   }
 
   return parsed;
@@ -126,7 +126,8 @@ export function createTutorService(
    * Retrieve all tutors.
    */
   async function getAllTutors() {
-    return repository.findAllTutors();
+    const tutors = await repository.findAllTutors();
+    return tutors.map(({ id, displayName, bio }) => ({ id, displayName, bio }));
   }
 
   /**
@@ -213,6 +214,9 @@ export function createTutorService(
     }
 
     const body = data as Record<string, unknown>;
+    if (Object.keys(body).some(key => !['startTime', 'endTime'].includes(key))) {
+      throw new TutorServiceError(400, 'INVALID_REQUEST', 'Only startTime and endTime are accepted');
+    }
 
     const startTime = parseDate(
       body.startTime,
@@ -248,7 +252,8 @@ export function createTutorService(
       await repository.createSlotIfNoOverlap(
         tutorId,
         startTime,
-        endTime
+        endTime,
+        user.userId
       );
 
     if (!newSlot) {

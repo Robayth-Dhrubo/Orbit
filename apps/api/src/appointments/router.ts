@@ -66,7 +66,7 @@ const respondToError: ErrorRequestHandler = (error, _request, response, next) =>
 };
 
 // Mount after JWT verification middleware that supplies res.locals.auth.
-export function createAppointmentRouter(pool: Pool) {
+export function createAppointmentRouter(pool: Pool, options: { forwardErrors?: boolean } = {}) {
   const router = express.Router();
   router.post("/appointments", express.json({ limit: "32kb" }), async (request, response) => {
     const userId = studentId(response);
@@ -84,6 +84,8 @@ export function createAppointmentRouter(pool: Pool) {
     await cancelAppointment(pool, userId, appointmentId);
     response.sendStatus(204);
   });
-  router.use(respondToError);
+  // The integrated application owns a shared error envelope and request ID.
+  // Standalone booking fixtures retain their local error handler.
+  if (!options.forwardErrors) router.use(respondToError);
   return router;
 }
