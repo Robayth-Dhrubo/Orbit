@@ -2,8 +2,8 @@
  * Connects Mehjabin's controllers/domain services to Azmain's PostgreSQL
  * repositories and Yousef's transaction-safe appointment operations.
  *
- * Source code from the existing backend/src is copied to src/team-api by
- * apply-integration.sh. No teammate source files need to be overwritten.
+ * Import the original domain modules so their unit tests exercise the same
+ * services used by the running API. SQL remains in the repositories.
  */
 import type { Pool } from "pg";
 import { createTutorService, type TutorRepository } from "../team-api/services/tutors.service.js";
@@ -12,26 +12,19 @@ import {
   type AppointmentRepository,
   type AtomicBookingService,
 } from "../team-api/services/appointments.service.js";
-import { createSlot, listAvailableSlots } from "../tutors/repository.js";
+import { createOwnedSlot, findTutorById, findTutorOwnerById, listTutors, listAvailableSlots } from "../tutors/repository.js";
 import { listOwnedAppointments } from "../appointments/repository.js";
 import { AppointmentError, bookAppointment, cancelAppointment } from "../appointments/service.js";
 
 export function connectTeamServices(pool: Pool) {
   const tutorRepository: TutorRepository = {
     async findAllTutors() {
-      const { rows } = await pool.query<{ id: string; userId: string; name: string; subject: string }>(
-        `SELECT id, user_id AS "userId", display_name AS name,
-          ''::text AS subject FROM tutor_profiles ORDER BY display_name, id`,
-      );
-      return rows;
+      return listTutors(pool);
     },
     async findTutorById(tutorId) {
-      const { rows } = await pool.query<{ id: string; userId: string; name: string; subject: string }>(
-        `SELECT id, user_id AS "userId", display_name AS name,
-          ''::text AS subject FROM tutor_profiles WHERE id = $1`,
-        [tutorId],
-      );
-      return rows[0] ?? null;
+      const profile = await findTutorById(pool, tutorId);
+      const userId = profile && await findTutorOwnerById(pool, tutorId);
+      return profile && userId ? { ...profile, userId } : null;
     },
     async findAvailableSlots(tutorId) {
       const slots = await listAvailableSlots(pool, tutorId);
@@ -40,11 +33,12 @@ export function connectTeamServices(pool: Pool) {
         startTime: slot.startsAt, endTime: slot.endsAt,
       }));
     },
-    async createSlotIfNoOverlap(tutorId, startTime, endTime) {
+    async createSlotIfNoOverlap(tutorId, startTime, endTime, ownerUserId) {
       try {
         // PostgreSQL EXCLUDE gist constraint on (tutor_id, tstzrange)
         // rejects simultaneous overlapping inserts, across API processes too.
-        const slot = await createSlot(pool, { tutorId, startsAt: startTime, endsAt: endTime });
+        const slot = await createOwnedSlot(pool, ownerUserId, { tutorId, startsAt: startTime, endsAt: endTime });
+        if (!slot) throw new AppointmentError(403, "FORBIDDEN", "You can only manage your own availability.");
         return { id: slot.id, tutorId: slot.tutorId, startTime: slot.startsAt, endTime: slot.endsAt };
       } catch (error) {
         if (typeof error === "object" && error !== null && "code" in error && error.code === "23P01") {

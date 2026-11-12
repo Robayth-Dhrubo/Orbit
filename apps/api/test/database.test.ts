@@ -20,6 +20,7 @@ import {
   findOwnedSlot,
   findSlotForUpdate,
   findTutorById,
+  findTutorOwnerById,
   findTutorByUserId,
   listAvailableSlots,
   listTutors,
@@ -78,7 +79,7 @@ test("real PostgreSQL migration, repositories, and transactions", { timeout: 900
   }
 
   await t.test("initializes an empty schema and safely repeats migration", async () => {
-    assert.deepEqual(fixture.applied, ["001_initial.sql"]);
+    assert.deepEqual(fixture.applied, ["001_initial.sql", "002_booking_payload_bounds.sql"]);
     assert.deepEqual(await migrate(pool), []);
     const { rows } = await pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name",
@@ -87,11 +88,44 @@ test("real PostgreSQL migration, repositories, and transactions", { timeout: 900
     assert.deepEqual(rows.map(row => row.table_name), [
       "appointments", "availability_slots", "idempotency_records", "schema_migrations", "tutor_profiles", "users",
     ]);
-    const { rows: history } = await pool.query("SELECT version, name, checksum FROM schema_migrations");
-    assert.equal(history.length, 1);
+    const { rows: history } = await pool.query("SELECT version, name, checksum FROM schema_migrations ORDER BY version");
+    assert.equal(history.length, 2);
     assert.equal(history[0].version, 1);
     assert.equal(history[0].name, "001_initial.sql");
     assert.match(history[0].checksum, /^[0-9a-f]{64}$/);
+    assert.equal(history[1].version, 2);
+    assert.equal(history[1].name, "002_booking_payload_bounds.sql");
+    assert.match(history[1].checksum, /^[0-9a-f]{64}$/);
+  });
+
+  await t.test("upgrades the initial schema without deleting data and rolls back invalid legacy payloads", async () => {
+    // Reconstruct the exact 001 schema in this disposable fixture. No application
+    // data or immutable migration file is changed outside this test schema.
+    await pool.query("ALTER TABLE appointments DROP CONSTRAINT appointments_topic_bounds, DROP CONSTRAINT appointments_notes_bounds");
+    await pool.query("DELETE FROM schema_migrations WHERE version = 2");
+    const { profile } = await tutor();
+    const student = await user();
+    const slot = await createSlot(pool, { tutorId: profile.id, ...interval() });
+    const receipt = await inTransaction(pool, client => insertBooking(client, student.id, {
+      slotId: slot.id, topic: " ", notes: "Existing notes must survive the upgrade",
+    }));
+    await assert.rejects(migrate(pool), databaseError("23514", "appointments_topic_bounds"));
+    assert.equal((await pool.query("SELECT version FROM schema_migrations")).rowCount, 1);
+    assert.equal((await findOwnedAppointment(pool, student.id, receipt.appointmentId))?.topic, " ");
+    await pool.query("UPDATE appointments SET topic = 'Legacy booking' WHERE id = $1", [receipt.appointmentId]);
+    assert.deepEqual(await migrate(pool), ["002_booking_payload_bounds.sql"]);
+    const preserved = await findOwnedAppointment(pool, student.id, receipt.appointmentId);
+    assert.equal(preserved?.topic, "Legacy booking");
+    assert.equal(preserved?.notes, "Existing notes must survive the upgrade");
+    assert.deepEqual(await migrate(pool), []);
+
+    for (const topic of ["", "  ", "\t\n", "x".repeat(201)]) {
+      await assert.rejects(pool.query("UPDATE appointments SET topic = $1 WHERE id = $2", [topic, receipt.appointmentId]),
+        databaseError("23514", "appointments_topic_bounds"));
+    }
+    await assert.rejects(pool.query("UPDATE appointments SET notes = $1 WHERE id = $2", ["x".repeat(4001), receipt.appointmentId]),
+      databaseError("23514", "appointments_notes_bounds"));
+    await pool.query("UPDATE appointments SET topic = $1, notes = $2 WHERE id = $3", ["x".repeat(200), "x".repeat(4000), receipt.appointmentId]);
   });
 
   await t.test("normalizes email and keeps password hashes out of public user/tutor results", async () => {
@@ -112,6 +146,8 @@ test("real PostgreSQL migration, repositories, and transactions", { timeout: 900
     assert.deepEqual(Object.keys(profile).sort(), ["bio", "displayName", "id"]);
     assert.deepEqual(await findTutorById(pool, profile.id), profile);
     assert.deepEqual(await findTutorByUserId(pool, created.id), profile);
+    assert.equal(await findTutorOwnerById(pool, profile.id), created.id);
+    assert.equal(await findTutorOwnerById(pool, randomUUID()), undefined);
     assert.ok((await listTutors(pool)).some(row => row.id === profile.id));
     const student = await user();
     assert.equal(await createTutorProfile(pool, { userId: student.id, displayName: "Not a tutor" }), undefined);

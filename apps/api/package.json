@@ -8,17 +8,21 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
-    "start": "node --env-file=.env --import tsx src/server.ts",
-    "test:auth": "tsx --test test/auth.test.ts",
     "test:booking": "tsx --test test/booking.test.ts",
     "test:race": "tsx scripts/booking-race.ts",
     "test:database": "tsx --test test/database.test.ts",
-    "test:integration": "tsx --test test/integration.test.ts",
-    "test:phase2": "npm run typecheck && npm run test:auth && npm run test:booking && npm run test:database && npm run test:integration && npm run test:race",
     "db:migrate": "node --env-file=.env --import tsx scripts/db-migrate.ts",
     "db:seed": "node --env-file=.env --import tsx scripts/db-seed.ts",
-    "db:reset": "node --env-file=.env --import tsx scripts/db-seed.ts --reset"
+    "db:reset": "node --env-file=.env --import tsx scripts/db-seed.ts --reset",
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
+    "start": "node --env-file=.env --import tsx src/server.ts",
+    "test:auth": "tsx --test test/auth.test.ts",
+    "test:integration": "tsx --test test/integration.test.ts",
+    "test:contract": "tsx --test test/contract.test.ts",
+    "validate:openapi": "tsx scripts/validate-openapi.ts",
+    "test:team": "tsx --test test/core/*.test.ts",
+    "test:phase2": "npm run typecheck && npm run validate:openapi && npm run test:team && npm run test:auth && npm run test:contract && npm run test:database && npm run test:booking && npm run test:integration && npm run test:race && npm run test:race",
+    "test": "npm run test:phase2"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -27,11 +31,15 @@
     "pg": "^8.16.0"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.5",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "tsx": "^4.20.0",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "yaml": "^2.9.1"
   }
 }

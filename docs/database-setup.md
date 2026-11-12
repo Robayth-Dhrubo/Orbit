@@ -1,10 +1,10 @@
-# Database setup and team handoff — Issue #8
+# Database setup — Phase 2
 
-This contribution supplies the initial PostgreSQL schema, database connection and transaction helpers, repositories, and repeatable local demo data. It connects to Yousef's booking module. The complete team API, production authentication, tutor routes, and published contract still require integration; there is no full-application start command in this contribution.
+The integrated service uses Azmain's PostgreSQL schema/repositories and Yousef's transaction-safe booking service, connected to Robayth's authentication and Mehjabin's core API. Start the API with `npm run dev` from `apps/api` after the migration and seed steps below.
 
 ## 1. Prepare the local database
 
-Use **Node.js 22+** and **PostgreSQL 13+**. Create a local development database and a role that can connect and create tables/indexes in the target schema.
+Use **Node.js 22+** and **PostgreSQL 17** (the verification target). Create a local development database and a role that can connect and create tables/indexes in the target schema.
 
 The migration installs `btree_gist` in the `public` schema to enforce nonoverlapping tutor slots. The database role must have permission to install it, or a database administrator must install it in that database first:
 
@@ -13,6 +13,33 @@ CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
 ```
 
 If PostgreSQL reports that the extension is unavailable, install the extension package supplied with your PostgreSQL installation. Keep `public` in the connection's `search_path`; the isolated database tests use their own schema followed by `public`.
+
+### Option A: local PostgreSQL
+
+Create separate development and test databases using your configured PostgreSQL role:
+
+```sh
+createdb orbit
+createdb orbit_test
+```
+
+Use your actual role, password and port in the connection URLs. If a database already exists, keep it; do not drop it to repeat setup.
+
+### Option B: the supplied Compose database
+
+Run from the repository root. Choose your local database password and keep it available in this shell for subsequent Compose commands:
+
+```sh
+export POSTGRES_PASSWORD='YOUR_LOCAL_DATABASE_PASSWORD'
+docker compose up -d --wait db
+docker compose exec -T db createdb -U orbit orbit_test
+```
+
+The service creates the `orbit` development database with user `orbit`; the last command creates the separate test database. Run that command once; an "already exists" response means the test database is already present. Set `ORBIT_DB_PORT` before starting Compose if port `5432` is occupied, for example `export ORBIT_DB_PORT=55433`.
+
+Use your chosen password and host port in both `.env` connection URLs: database `orbit` for `DATABASE_URL`, and `orbit_test` for `TEST_DATABASE_URL`. Percent-encode reserved characters in a password embedded in a URL. The Compose volume preserves database contents when the container restarts. `docker compose stop db` stops it without deleting data. This setup starts PostgreSQL only; run the Node API separately.
+
+### Install and configure the API
 
 From the repository root:
 
@@ -27,6 +54,9 @@ Edit the local `.env` file:
 - `DATABASE_URL`: your local PostgreSQL connection URL, including database name.
 - `DEMO_PASSWORD`: your own demo password, at least 12 characters and no more than 72 UTF-8 bytes. Replace the example value.
 - `NODE_ENV`: keep `development` for demo data. The seed command refuses production mode.
+- `JWT_SECRET`: a random value of at least 32 UTF-8 bytes; generate one with `openssl rand -hex 32`.
+- `TEST_DATABASE_URL`: a separate disposable database for checks.
+- `PORT`: the API listening port (default `3000`).
 
 The database commands load `apps/api/.env`. Keep that file and real credentials out of Git.
 
@@ -39,7 +69,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-`db:migrate` applies `database/migrations/001_initial.sql` and records its version, filename, SHA-256 checksum, and application time in `schema_migrations`. The schema and its history record commit together. A database advisory lock serializes concurrent migration runs. Running the same unchanged migration again is a no-op. Editing an already-applied migration produces a checksum error; later schema changes belong in a new ordered migration.
+`db:migrate` applies the numbered SQL files in `database/migrations/` in order and records each version, filename, SHA-256 checksum, and application time in `schema_migrations`. The schema and its history record commit together. A database advisory lock serializes concurrent migration runs. Running the same unchanged migration again is a no-op. Editing an already-applied migration produces a checksum error; later schema changes belong in a new ordered migration.
 
 The seed command prints the account and slot IDs. It creates **23 accounts**:
 
@@ -50,7 +80,7 @@ The seed command prints the account and slot IDs. It creates **23 accounts**:
 | Tutor | `tutor@orbit.test` |
 | Twenty race students | `race.01@orbit.test` through `race.20@orbit.test` |
 
-All use the supplied `DEMO_PASSWORD`, stored as independently salted `bcryptjs` hashes with cost 10. Robayth's login implementation can verify a password with `bcryptjs.compare(password, user.passwordHash)` after using `findUserCredentialsByEmail`. Never return that credential record to a client.
+All use the supplied `DEMO_PASSWORD`, stored as independently salted `bcryptjs` hashes with cost 10. The login service verifies these hashes through `findUserCredentialsByEmail` and `bcryptjs.compare`. Public authentication responses exclude password hashes.
 
 The seed also creates the tutor profile and two one-hour slots roughly two days in the future. Repeating normal seeding **preserves bookings and existing slot times** while refreshing the demo password hashes. If the slots have become occupied or old, use the explicit reset below.
 
@@ -118,12 +148,9 @@ The confirmed-appointment index is **partial**: it includes only rows whose stat
 For checks, set `TEST_DATABASE_URL` in the shell to a **disposable PostgreSQL database**, then run from `apps/api`:
 
 ```sh
-npm run typecheck
-npm run test:database
-npm run test:booking
-npm run test:race
+npm run test:phase2
 ```
 
-The test database role needs permission to create test schemas; the database tests also require the extension setup above. These test scripts do not automatically load `.env`. They create and remove isolated schemas. `test:database` exercises the actual migration and repositories. The existing booking/race harness uses its own fixture schema and temporary test JWTs; it does not verify the team's production login or full application wiring. The race script creates its own users and slot rather than consuming the seeded demo accounts.
+The test database role needs permission to create test schemas; the database tests also require the extension setup above. Test commands use `TEST_DATABASE_URL` from the shell. They create and remove isolated schemas. `test:database` exercises the real migrations and repositories. The standalone booking/race harness uses its own fixture schema and test JWTs; `test:integration` exercises the real authentication and complete application. The race script creates its own users and slot rather than consuming the seeded demo accounts.
 
-These are reproducible check commands, not a claim that a particular environment or the integrated team milestone has passed. Record actual results after running them.
+Actual execution results and limitations are recorded in [`phase2-verification.md`](phase2-verification.md).

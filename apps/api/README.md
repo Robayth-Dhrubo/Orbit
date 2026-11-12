@@ -1,28 +1,57 @@
-# Appointment booking and cancellation
+# ORBIT API
 
-This module implements the transaction-sensitive endpoints for [Orbit #5](https://github.com/Robayth-Dhrubo/Orbit/issues/5). The Express router calls the service, which keeps all booking and idempotency writes on one PostgreSQL connection and commits before returning the response.
-
-## Run the checks
-
-Use Node.js 22 or newer and a disposable PostgreSQL 13+ database. Set `TEST_DATABASE_URL` to its connection URL. The database user needs permission to create a schema. Each run creates a fresh schema and starts an Express server on a loopback port. The test harness creates fixture users, signs fixture JWTs and removes its schema when it finishes.
+The runnable Phase 2 service lives here. Start with the [repository setup guide](../../README.md) and [database instructions](../../docs/database-setup.md). Node.js 22+ and PostgreSQL are required. Install the locked dependencies once in `apps/api`. The original core API modules now live in `src/team-api`, and their tests live in `test/core`.
 
 ```sh
 npm ci
-npm run typecheck
-npm run test:booking
-npm run test:race
+cp .env.example .env
+# Edit .env with your database URLs, signing secret and demo password.
+npm run db:migrate
+npm run db:seed
+npm run dev
 ```
 
-Run these commands from `apps/api`. The race script sends 20 simultaneous POST requests for one slot using different student accounts and keys. It exits successfully only if it sees one 201, nineteen 409 SLOT_ALREADY_BOOKED responses, and one confirmed row matching the winning appointment and student.
+`dev` and `start` load `.env` and start `src/server.ts`. The database commands also load `.env`. Test commands use the shell's `TEST_DATABASE_URL`; the tests must use a separate disposable database:
 
-## Connect to the team API
+```sh
+export TEST_DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/orbit_test'
+npm run test:phase2
+```
 
-- Mount `createAppointmentRouter(pool)` at the API root after verified JWT middleware populates `res.locals.auth` with `{ userId, role }`. Use this router for POST and DELETE appointments so those routes share the transaction service. The test JWT setup lives in `test/booking-fixture.ts`.
-- Match the repository SQL and fixture DDL with the team's migrations. It expects UUID IDs, timezone-aware slot timestamps, appointments with confirmed/cancelled status, and JSONB idempotency responses. Preserve the unique user/operation/key tuple and `one_confirmed_appointment_per_slot` partial unique index. That index name is used to map SQLSTATE 23505 to a booking conflict.
-- Booking first locks the key scope (authenticated student, operation, key), then locks the slot row. A fresh read after the slot lock checks the PostgreSQL clock and reads any booking committed by a previous lock holder. Cancellation looks up the owned appointment and takes the same slot lock before updating it.
-- Slot publication needs its own database-backed overlap protection. If implemented with row locking, lock the tutor profile in the same transaction before checking for a slot with `starts_at < proposed_end AND ends_at > proposed_start` and inserting. Keep published slot times fixed for booking. Availability publication and its overlap checks belong in the team API.
-- Align the following provisional details with the published OpenAPI contract. Booking takes a UUID slot ID, a nonblank topic of up to 200 characters, optional notes of up to 4,000 characters, and a single 1–255-character visible ASCII idempotency key without commas. Missing or invalid fields return 400. Unsupported JSON charset or content encoding returns 415. A missing slot returns 404. A started slot, occupied slot, or reused key with different input returns 409 with its own error code. Booking and replay return 201 with `{ appointmentId, slotId, status }`. Cancellation returns 204 for the owner, including retries. Unknown and other-owned appointments return 404.
+| Command | Purpose |
+|---|---|
+| `typecheck` | API TypeScript validation |
+| `test:auth` | Credentials, tokens and public auth response checks |
+| `validate:openapi` | Published OpenAPI validity |
+| `test:contract` | Contract and response conformance |
+| `test:database` | Real migrations, seed/reset, constraints and repositories |
+| `test:booking` | Atomic booking, cancellation, replay and rollback |
+| `test:integration` | Full application against real PostgreSQL and JWT middleware |
+| `test:race` | Twenty distinct students compete for a fresh slot |
+| `test:team` | Core service and HTTP tests in `test/core` |
+| `test:phase2` | All milestone checks from this single package, including two fresh race runs |
 
-## Contribution and verification
+The [verification record](../../docs/phase2-verification.md) records actual execution results. The [demo](../../docs/phase2-demo.md) exercises the service manually. API documentation is available at `/docs`; the source is [`../../openapi.yaml`](../../openapi.yaml), served at `/openapi.yaml`.
 
-Codex assisted with the booking service, PostgreSQL repository, route adapter, fixture and tests. The module was exercised through HTTP and verified against PostgreSQL 17.11. The team's authentication middleware, migrations, availability routes, and published OpenAPI contract still need integration and review.
+## Booking transaction contract
+
+`src/appointments/service.ts` is the single transaction-sensitive booking/cancellation implementation. Routers call it with identity taken from verified auth middleware, never an owner ID supplied by the client.
+
+Booking first serializes the `(authenticated student, operation, idempotency key)` scope, then locks the availability slot. The availability check, appointment insertion and stored successful response use the same database connection and transaction. The response is returned only after commit. Slot row locking coordinates competing requests across API instances; the `one_confirmed_appointment_per_slot` partial unique index is an independent safeguard.
+
+The same user/key/canonical input returns the original `201` and appointment ID. Different input with that key returns `409 IDEMPOTENCY_CONFLICT`. Idempotency records are not shared between users. A new key for an occupied slot returns `409 SLOT_ALREADY_BOOKED`.
+
+Cancellation looks up the owned appointment and takes the same slot lock before changing its status. Owner retries return `204`; unknown and other-owned appointments return `404`. Cancelled rows remain in history and the slot can be rebooked. Replaying a successful original booking key after cancellation still returns the original stored receipt; fetch the owner's appointment list for current state.
+
+Slot publication uses PostgreSQL's exclusion constraint to reject overlapping tutor availability. Intervals use `[start, end)`, allowing adjacent slots. Published slot times are not edited while bookings rely on them.
+
+## Layer boundaries
+
+- `src/app.ts` assembles middleware, routes, documentation and error handling.
+- `src/auth/` hashes/verifies passwords, issues/verifies JWTs, and validates current database identity/role.
+- `src/team-api/` contains canonical core controllers, routes and domain service interfaces.
+- `src/integration/` adapts these interfaces to concrete repository and atomic booking functions.
+- `src/users/`, `src/tutors/` and `src/appointments/repository.ts` contain parameterized SQL.
+- `src/database/` owns the pool, shared transactions, migrations and demo data.
+
+No external HTTP service runs inside a booking transaction. Resend/outbox integration belongs to the later project phase.

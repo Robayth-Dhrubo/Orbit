@@ -28,23 +28,13 @@ export function createOrbitApp(pool: Pool, jwtSecret: string) {
   app.use(express.json({ limit: "32kb", strict: true }));
 
   app.use(createAuthRouter(pool, jwtSecret));
-  // Keep slot-publication input aligned with the committed OpenAPI schema.
-  app.post("/tutors/:tutorId/slots", (request, _response, next) => {
-    const body = request.body;
-    if (typeof body !== "object" || body === null || Array.isArray(body) ||
-        Object.keys(body).some(key => !["startTime", "endTime"].includes(key))) {
-      next(new AuthError(400, "INVALID_REQUEST", "Provide only startTime and endTime."));
-      return;
-    }
-    next();
-  });
   app.use("/tutors", createTutorRoutes(services.tutorService, requireAuth, authenticatedFromRequest));
   // Mehjabin's appointment listing controller reads only the verified JWT user.
   app.get("/appointments", requireAuth, appointmentController.getAppointments);
   // Yousef's router owns the sensitive POST and DELETE paths: validation,
   // idempotency, cancellation, and shared database slot locks stay intact.
   app.use("/appointments", requireAuth);
-  app.use(createAppointmentRouter(pool));
+  app.use(createAppointmentRouter(pool, { forwardErrors: true }));
 
   app.get("/openapi.yaml", async (_request, response, next) => {
     try {
@@ -52,10 +42,22 @@ export function createOrbitApp(pool: Pool, jwtSecret: string) {
       response.type("application/yaml").send(yaml);
     } catch (error) { next(error); }
   });
+  app.get("/docs", async (_request, response, next) => {
+    try {
+      const yaml = await readFile(new URL("../../../openapi.yaml", import.meta.url), "utf8");
+      const escaped = yaml.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      response.type("html").send(`<!doctype html><html lang="en"><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1"><title>ORBIT API contract</title>
+        <style>body{max-width:72rem;margin:2rem auto;padding:0 1rem;font:16px system-ui;line-height:1.5}pre{overflow:auto;background:#f3f5f8;padding:1.5rem;border-radius:.5rem;font-size:14px}</style>
+        <h1>ORBIT Phase 2 API contract</h1><p>Eight application operations for authentication, tutor availability and appointments.</p>
+        <p><a href="/openapi.yaml">Download OpenAPI YAML</a>. This page works offline once the API is running.</p><pre>${escaped}</pre></html>`);
+    } catch (error) { next(error); }
+  });
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+  app.use((_request, _response, next) => next(new AuthError(404, "NOT_FOUND", "Route not found.")));
 
-  const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
-    if (response.headersSent) return;
+  const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, next) => {
+    if (response.headersSent) { next(error); return; }
     const correlationId = String(response.locals.correlationId || randomUUID());
     let status = 500;
     let code = "INTERNAL_ERROR";
@@ -64,6 +66,8 @@ export function createOrbitApp(pool: Pool, jwtSecret: string) {
       status = error.status; code = error.code; message = error.message;
     } else if (error instanceof TutorServiceError || error instanceof AppointmentServiceError) {
       status = error.statusCode; code = error.code; message = error.message;
+    } else if (error instanceof URIError && "status" in error && error.status === 400) {
+      status = 400; code = "INVALID_PATH"; message = "Invalid URL path encoding.";
     } else if (typeof error === "object" && error !== null && "type" in error) {
       if (error.type === "entity.parse.failed") {
         status = 400; code = "INVALID_JSON"; message = "Malformed JSON request body.";

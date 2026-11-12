@@ -1,6 +1,15 @@
 import type { Pool, PoolClient } from "pg";
+import { inTransaction } from "../database/transaction.js";
 
 type Database = Pool | PoolClient;
+
+// A caller-supplied client stays in its caller's transaction; a pool opens one.
+// Every availability insert takes the same tutor lock before exclusion checking.
+// The exclusion constraint alone can deadlock when concurrent speculative inserts
+// wait on each other. Serializing the schedule makes the loser a stable conflict.
+function inScheduleTransaction<T>(db: Database, operation: (client: PoolClient) => Promise<T>): Promise<T> {
+  return "release" in db ? operation(db) : inTransaction(db, operation);
+}
 
 export type TutorProfile = {
   id: string;
@@ -55,6 +64,14 @@ export async function findTutorById(db: Database, tutorId: string): Promise<Tuto
     [tutorId],
   );
   return rows[0];
+}
+
+/** Internal authorization lookup; never add account IDs to public tutor responses. */
+export async function findTutorOwnerById(db: Database, tutorId: string): Promise<string | undefined> {
+  const { rows } = await db.query<{ user_id: string }>(
+    "SELECT user_id FROM tutor_profiles WHERE id = $1", [tutorId],
+  );
+  return rows[0]?.user_id;
 }
 
 export async function findTutorByUserId(db: Database, userId: string): Promise<TutorProfile | undefined> {
@@ -127,12 +144,15 @@ export async function findOwnedSlot(
 }
 
 export async function createSlot(db: Database, input: CreateSlotInput): Promise<AvailabilitySlot> {
-  const { rows } = await db.query<SlotRow>(
-    "INSERT INTO availability_slots (tutor_id, starts_at, ends_at) VALUES ($1, $2, $3) " +
-      'RETURNING id, tutor_id AS "tutorId", starts_at AS "startsAt", ends_at AS "endsAt"',
-    [input.tutorId, input.startsAt, input.endsAt],
-  );
-  return toSlot(rows[0]);
+  return inScheduleTransaction(db, async client => {
+    await client.query("SELECT id FROM tutor_profiles WHERE id = $1 FOR UPDATE", [input.tutorId]);
+    const { rows } = await client.query<SlotRow>(
+      "INSERT INTO availability_slots (tutor_id, starts_at, ends_at) VALUES ($1, $2, $3) " +
+        'RETURNING id, tutor_id AS "tutorId", starts_at AS "startsAt", ends_at AS "endsAt"',
+      [input.tutorId, input.startsAt, input.endsAt],
+    );
+    return toSlot(rows[0]);
+  });
 }
 
 export async function createOwnedSlot(
@@ -140,11 +160,16 @@ export async function createOwnedSlot(
   userId: string,
   input: CreateSlotInput,
 ): Promise<AvailabilitySlot | undefined> {
-  const { rows } = await db.query<SlotRow>(
-    "INSERT INTO availability_slots (tutor_id, starts_at, ends_at) " +
-      "SELECT id, $3, $4 FROM tutor_profiles WHERE id = $1 AND user_id = $2 " +
-      'RETURNING id, tutor_id AS "tutorId", starts_at AS "startsAt", ends_at AS "endsAt"',
-    [input.tutorId, userId, input.startsAt, input.endsAt],
-  );
-  return rows[0] ? toSlot(rows[0]) : undefined;
+  return inScheduleTransaction(db, async client => {
+    const owned = await client.query(
+      "SELECT id FROM tutor_profiles WHERE id = $1 AND user_id = $2 FOR UPDATE", [input.tutorId, userId],
+    );
+    if (owned.rowCount !== 1) return undefined;
+    const { rows } = await client.query<SlotRow>(
+      "INSERT INTO availability_slots (tutor_id, starts_at, ends_at) VALUES ($1, $2, $3) " +
+        'RETURNING id, tutor_id AS "tutorId", starts_at AS "startsAt", ends_at AS "endsAt"',
+      [input.tutorId, input.startsAt, input.endsAt],
+    );
+    return toSlot(rows[0]);
+  });
 }
