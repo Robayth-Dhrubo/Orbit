@@ -1,0 +1,22 @@
+{
+  "name": "orbit",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "ORBIT — Tutor Appointment Booking Service",
+  "scripts": {
+    "dev": "npm --prefix apps/api run dev",
+    "start": "npm --prefix apps/api start",
+    "typecheck": "npm --prefix apps/api run typecheck",
+    "test": "npm --prefix apps/api run test:phase2",
+    "test:auth": "npm --prefix apps/api run test:auth",
+    "test:booking": "npm --prefix apps/api run test:booking",
+    "test:database": "npm --prefix apps/api run test:database",
+    "test:integration": "npm --prefix apps/api run test:integration",
+    "test:race": "npm --prefix apps/api run test:race",
+    "test:phase2": "npm --prefix apps/api run test:phase2",
+    "db:migrate": "npm --prefix apps/api run db:migrate",
+    "db:seed": "npm --prefix apps/api run db:seed",
+    "db:reset": "npm --prefix apps/api run db:reset"
+  }
+}
