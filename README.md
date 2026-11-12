@@ -818,114 +818,193 @@ This structure is a development target and should be updated to match the actual
 
 ## Prerequisites
 
-The proposed development environment requires:
+- **Node.js**: v22.0.0 or higher
+- **npm**: v10.0.0 or higher
+- **PostgreSQL**: v13 or higher (requires `btree_gist` extension support)
+- **Git**
 
-- Git
-- Node.js
-- npm
-- PostgreSQL
-- Docker and Docker Compose
+## Setup and Configuration
 
-## Clone the Repository
+1. **Clone the repository and enter the API directory**:
 
 ```bash
 git clone https://github.com/Robayth-Dhrubo/Orbit.git
-
-cd Orbit
+cd Orbit/apps/api
+npm ci
 ```
 
-## Environment Configuration
+2. **Configure environment variables**:
 
-Once the `.env.example` file is committed:
+Copy the example environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Example environment variables:
+Configure `.env` with your local settings:
 
 ```dotenv
-NODE_ENV=development
-PORT=3000
-
 DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/orbit
-
-JWT_SECRET=replace_with_secure_local_secret
-JWT_EXPIRES_IN=1h
-
-RESEND_API_KEY=replace_when_email_integration_is_enabled
+DEMO_PASSWORD=your-own-12-character-plus-demo-password
+JWT_SECRET=your-secure-random-secret-at-least-32-bytes-long
+PORT=3000
+TEST_DATABASE_URL=postgresql://TEST_USER:PASSWORD@localhost:5432/orbit_test
 ```
 
-These are examples only. Actual variable names must match the implementation.
+> [!IMPORTANT]
+> - `DEMO_PASSWORD` must be at least 12 characters and no more than 72 UTF-8 bytes.
+> - `JWT_SECRET` must be at least 32 UTF-8 bytes.
+> - Never commit `.env` or real credentials to Git.
 
-Never commit real credentials or `.env` files.
-
-## Planned Docker Startup
+3. **Database migrations and seeding**:
 
 ```bash
-docker compose up --build
+npm run db:migrate
+npm run db:seed
 ```
 
-The application should eventually start the backend and PostgreSQL through a reproducible configuration.
+`db:migrate` applies `database/migrations/001_initial.sql` using advisory locks and records migrations in `schema_migrations`.  
+`db:seed` populates 23 test accounts (`student.a@orbit.test`, `student.b@orbit.test`, `tutor@orbit.test`, and `race.01`–`race.20`), tutor profile, and future appointment slots.
 
-The notification worker will be included during Phase 3.
+To reset the demo fixture at any time:
 
-> **Note:** These setup steps describe the intended environment. They must be verified and updated once the corresponding project files and scripts have been committed.
+```bash
+npm run db:reset -- --confirm
+```
+
+4. **Start the API server**:
+
+```bash
+npm run dev     # Development mode with hot reload
+# or
+npm start       # Standard startup
+```
+
+The server listens on `http://localhost:3000`. Health check: `GET http://localhost:3000/health`.
+
+## Viewing the OpenAPI Contract
+
+The OpenAPI 3.0.3 specification is exposed directly by the running server and committed at the repository root:
+
+- **Live URL**: `http://localhost:3000/openapi.yaml`
+- **File path**: [`openapi.yaml`](file:///Users/robaythshahrindhrubo/Orbit/openapi.yaml)
+- **Interactive UI**: Upload `openapi.yaml` to [Swagger Editor](https://editor.swagger.io/) or open via Swagger UI.
+
+---
+
+# Five-Minute Milestone Demonstration
+
+This step-by-step walkthrough exercises all Phase 2 endpoints, JWT authentication, atomic booking, idempotency, and concurrency protection.
+
+### 1. Log in as Seeded Student A
+
+```bash
+curl -sS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"student.a@orbit.test","password":"YOUR_DEMO_PASSWORD"}'
+```
+
+Extract the `token` from the JSON response and set it in your shell:
+
+```bash
+TOKEN="<paste-token-here>"
+```
+
+### 2. Discover Tutors and Available Slots
+
+```bash
+# List all tutors
+curl -sS http://localhost:3000/tutors
+
+# List future available slots for the seeded tutor
+curl -sS http://localhost:3000/tutors/10000000-0000-4000-8000-000000001001/slots
+```
+
+### 3. Book a Slot with Idempotency Key
+
+```bash
+curl -i -X POST http://localhost:3000/appointments \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-key-001' \
+  -d '{"slotId":"10000000-0000-4000-8000-000000002001","topic":"Calculus Help"}'
+```
+
+**Expected response**: `201 Created` with JSON `{ "appointmentId": "...", "slotId": "...", "status": "confirmed" }`.
+
+### 4. Idempotent Retry (Same Key, Same Body)
+
+Repeat the exact same command. The service returns the cached `201 Created` with the identical appointment ID without creating a duplicate record.
+
+### 5. Competing Booking by Student B (Double-Booking Conflict)
+
+Log in as `student.b@orbit.test`, get `TOKEN_B`, and attempt to book the same slot:
+
+```bash
+curl -i -X POST http://localhost:3000/appointments \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-student-b-001' \
+  -d '{"slotId":"10000000-0000-4000-8000-000000002001","topic":"Physics Tutoring"}'
+```
+
+**Expected response**: `409 Conflict` with error code `SLOT_ALREADY_BOOKED`.
+
+### 6. Retrieve Owned Appointments
+
+```bash
+curl -sS http://localhost:3000/appointments \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Returns only Student A's appointments. Student B cannot see Student A's bookings.
+
+### 7. Cancel Appointment
+
+```bash
+curl -i -X DELETE http://localhost:3000/appointments/<APPOINTMENT_ID> \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Expected response**: `204 No Content`. Retrying returns `204`. If Student B attempts to cancel Student A's appointment, the request returns `404 Not Found`.
+
+### 8. Run the 20-Student Concurrency Race Test
+
+```bash
+export TEST_DATABASE_URL='postgresql://orbit:orbit_test@localhost:5432/orbit_test'
+npm run test:race
+```
+
+Sends 20 simultaneous HTTP booking requests for one slot. Exactly one student wins (`201 Created`), 19 receive `409 Conflict`, and database verification confirms exactly one confirmed row.
 
 ---
 
 # Testing Strategy
 
-ORBIT will use automated testing to verify the correctness of the API and its business rules.
+ORBIT uses automated testing suites executed via Node.js native test runner (`tsx --test`):
 
-## Functional Tests
+```bash
+# Typecheck
+npm run typecheck
 
-- Valid login
-- Invalid login
-- Tutor retrieval
-- Tutor availability retrieval
-- Tutor availability creation
-- Successful appointment booking
-- Invalid booking requests
-- Appointment retrieval
-- Appointment cancellation
+# Unit & Security Tests: Authentication, password hashing, JWT forgery & expiry
+npm run test:auth
 
-## Security Tests
+# Domain & Concurrency Tests: Atomic booking, idempotency, input validation
+npm run test:booking
 
-- Missing JWT
-- Expired JWT
-- Forged JWT
-- Unauthorized appointment access
-- Unauthorized cancellation
-- Tutor availability ownership
+# Data Layer Tests: PostgreSQL transactions, btree_gist constraints, repositories
+npm run test:database
 
-## Concurrency Tests
+# End-to-End Integration Tests: Real HTTP endpoints, JWT auth, database persistence
+npm run test:integration
 
-- Two students booking the same slot
-- Twenty students booking the same slot
-- Concurrent identical idempotency requests
-- Booking conflict handling
-- Cancellation followed by rebooking
-- Transaction rollback after failure
+# Concurrency Race Test: 20 simultaneous HTTP booking requests
+npm run test:race
 
-## Persistence Tests
-
-- Database relationships
-- Appointment persistence
-- Restart behavior
-- Migration application
-
-## Notification Tests
-
-Planned for Phase 3:
-
-- Successful email delivery
-- Simulated provider timeout
-- Temporary provider failure
-- Retry handling
-- Duplicate notification prevention
-- Permanent failure handling
-- Worker restart recovery
+# Complete Phase 2 Milestone Suite
+npm run test:phase2
+```
 
 ---
 
@@ -951,21 +1030,21 @@ Planned for Phase 3:
 
 ### Requirements
 
-- [ ] Running Express backend
-- [ ] Published OpenAPI contract
-- [ ] Working API controllers
-- [ ] Working domain/service layer
-- [ ] PostgreSQL connection
-- [ ] Working repository/data layer
-- [ ] JWT authentication
-- [ ] Basic authorization
-- [ ] Tutor availability endpoints
-- [ ] Appointment booking endpoint
-- [ ] Appointment retrieval and cancellation
-- [ ] PostgreSQL transaction protection
-- [ ] Double-booking prevention
-- [ ] Concurrency test
-- [ ] Short progress demonstration
+- [x] Running Express backend
+- [x] Published OpenAPI contract
+- [x] Working API controllers
+- [x] Working domain/service layer
+- [x] PostgreSQL connection
+- [x] Working repository/data layer
+- [x] JWT authentication
+- [x] Basic authorization
+- [x] Tutor availability endpoints
+- [x] Appointment booking endpoint
+- [x] Appointment retrieval and cancellation
+- [x] PostgreSQL transaction protection
+- [x] Double-booking prevention
+- [x] Concurrency test
+- [x] Short progress demonstration
 
 ### Phase 2 Deliverable
 
