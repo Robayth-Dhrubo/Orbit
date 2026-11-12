@@ -12,7 +12,7 @@ const studentId = "10000000-0000-4000-8000-000000000001";
 const users = new Map<string, { id: string; email: string; role: "student" | "tutor"; passwordHash: string }>();
 const sqlCalls: string[] = [];
 
-const pool = {
+const poolImpl = {
   async query(sql: string, values: unknown[] = []) {
     sqlCalls.push(sql);
     if (sql.includes("SELECT id, email, role, password_hash")) {
@@ -34,16 +34,16 @@ const pool = {
     throw new Error(`Unexpected SQL in auth test: ${sql}`);
   },
   async connect() {
-    const owner = this;
     return {
       async query(sql: string, values?: unknown[]) {
         if (sql.startsWith("BEGIN") || sql === "COMMIT" || sql === "ROLLBACK") return { rows: [], rowCount: 0 };
-        return owner.query(sql, values);
+        return poolImpl.query(sql, values);
       },
       release() {},
     };
   },
-} as unknown as Pool;
+};
+const pool = poolImpl as unknown as Pool;
 
 const app = express();
 app.use(express.json());

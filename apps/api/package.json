@@ -8,9 +8,14 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
+    "start": "node --env-file=.env --import tsx src/server.ts",
+    "test:auth": "tsx --test test/auth.test.ts",
     "test:booking": "tsx --test test/booking.test.ts",
     "test:race": "tsx scripts/booking-race.ts",
     "test:database": "tsx --test test/database.test.ts",
+    "test:integration": "tsx --test test/integration.test.ts",
+    "test:phase2": "npm run typecheck && npm run test:auth && npm run test:booking && npm run test:database && npm run test:integration && npm run test:race",
     "db:migrate": "node --env-file=.env --import tsx scripts/db-migrate.ts",
     "db:seed": "node --env-file=.env --import tsx scripts/db-seed.ts",
     "db:reset": "node --env-file=.env --import tsx scripts/db-seed.ts --reset"
@@ -18,6 +23,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.0"
   },
   "devDependencies": {
@@ -25,7 +31,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.5",
-    "jsonwebtoken": "^9.0.2",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3"
   }
