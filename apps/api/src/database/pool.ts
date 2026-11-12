@@ -14,6 +14,12 @@ export function createDatabasePool(connectionString = process.env.DATABASE_URL):
     // A connection URL can contain credentials, so never include it in this error.
     throw new Error("DATABASE_URL must be a valid PostgreSQL connection URL.");
   }
-  return new Pool({ connectionString, max: 20, connectionTimeoutMillis: 5000 });
+  const pool = new Pool({ connectionString, max: 20, connectionTimeoutMillis: 5000 });
+  // During PostgreSQL container restarts, idle clients can emit an error event.
+  // A listener prevents this from terminating Node. Queries reconnect as needed.
+  pool.on("error", () => {
+    console.error("Idle PostgreSQL connection was lost; reconnecting on the next query.");
+  });
+  return pool;
 }
 
