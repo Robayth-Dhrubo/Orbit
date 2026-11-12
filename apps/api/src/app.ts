@@ -24,6 +24,37 @@ export function createOrbitApp(pool: Pool, jwtSecret: string) {
     next();
   };
   app.use(correlation);
+
+  // JSON Lines request logs for all responses, including handled errors.
+  // Do not record URLs, query strings, IP addresses, headers, JWTs or bodies.
+  // Correlation ID is assigned by the preceding middleware.
+  const structuredRequestLogger: RequestHandler = (request, response, next) => {
+    const startedAt = process.hrtime.bigint();
+    let emitted = false;
+    const emit = (outcome: "completed" | "aborted") => {
+      if (emitted) return;
+      emitted = true;
+      const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      const entry = {
+        timestamp: new Date().toISOString(),
+        level: response.statusCode >= 500 ? "error" : "info",
+        event: "http_request",
+        correlationId: String(response.locals.correlationId),
+        method: request.method,
+        statusCode: response.statusCode,
+        durationMs: Math.round(elapsedMs * 100) / 100,
+        outcome,
+      };
+      console.info(JSON.stringify(entry));
+    };
+    response.once("finish", () => emit("completed"));
+    response.once("close", () => {
+      if (!response.writableFinished) emit("aborted");
+    });
+    next();
+  };
+  app.use(structuredRequestLogger);
+
   // Explicit parser limit and centralized parser-error handling.
   app.use(express.json({ limit: "32kb", strict: true }));
 
