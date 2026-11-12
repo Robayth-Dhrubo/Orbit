@@ -12,3 +12,4 @@ This directory contains technical architecture documentation, database configura
 | [azmain-ai-collaboration.md](./azmain-ai-collaboration.md) | Azmain's AI collaboration record and verification log | Azmain |
 
 The source-of-truth OpenAPI specification is committed at the repository root: [`openapi.yaml`](../openapi.yaml).
+

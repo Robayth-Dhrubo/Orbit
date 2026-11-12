@@ -20,3 +20,4 @@
     "db:reset": "npm --prefix apps/api run db:reset"
   }
 }
+
