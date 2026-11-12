@@ -146,7 +146,7 @@ The ZIP is **not** a replacement for the repository and should not be uploaded d
 
 ```sh
 git status --short
-git add apps/api README.md docs openapi.yaml
+git add apps/api README.md docs openapi.yaml .github/workflows/orbit-phase2-integration.yml
 git commit -m "feat(orbit): integrate JWT auth, OpenAPI and Phase 2 API"
 git push -u origin "$(git branch --show-current)"
 ```

@@ -36,3 +36,7 @@ Next, configure a real PostgreSQL test database and run `npm run test:phase2`, t
 - `.env.example` — safe placeholder names; never includes actual secrets
 
 **Out of scope here:** final UI, email provider, outbox, full deployment, smart matching and waitlists. Whether an external-service demonstration is required in Phase 2 must be checked against the actual grading rubric; no such integration is claimed complete here.
+
+## Review note
+
+This ZIP is not a complete standalone ORBIT repository: it requires the original `feature/8-postgresql-data-layer` and `feature/core-booking-api` Git branches. A successful archive integrity check does **not** mean the integrated program passes TypeScript, database, contract, or race tests. Check GitHub Actions and the manual demo before merging.
