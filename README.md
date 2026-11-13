@@ -4,64 +4,31 @@ ORBIT is a tutoring appointment REST service for **SOEN 387, Fall 2026**. The No
 
 The milestone scope is recorded in [issue #4](https://github.com/Robayth-Dhrubo/Orbit/issues/4) and its four implementation tasks. See [the requirements checklist](docs/phase2-requirements.md), [the demonstration guide](docs/phase2-demo.md), and [the verification record](docs/phase2-verification.md) for scope and execution evidence.
 
-## Quick start
+## Run Phase 2
 
-Prerequisites: **Node.js 22+**, npm, and **PostgreSQL 17** (or Docker Compose for the supplied database configuration). PostgreSQL must provide `btree_gist`. Run from the repository root:
+Use Docker Compose to start the API and PostgreSQL together. From the repository root, copy the example environment file and replace `POSTGRES_PASSWORD` and `JWT_SECRET` in `.env` with locally generated values. Use a URL-safe password and a signing secret of at least 32 bytes.
+
+```sh
+cp .env.example .env
+docker compose up --build -d --wait
+curl -fsS http://localhost:3000/ready
+```
+
+The API applies the SQL migrations at startup. Open [API documentation](http://localhost:3000/docs) or [OpenAPI YAML](http://localhost:3000/openapi.yaml). If you change `ORBIT_API_PORT`, use that port in the URLs. For demo accounts, restart checks, and setup without the API container, see the [Compose guide](docs/member2-deployment.md) and [database setup](docs/database-setup.md).
+
+## Test and demo
+
+To run the suite from the repository root, use Node.js 22+ and a separate disposable PostgreSQL 17 database with schema-creation permission and `btree_gist` available.
 
 ```sh
 npm --prefix apps/api ci
-cp apps/api/.env.example apps/api/.env
-```
-
-Create development and test databases, either using your PostgreSQL installation or the database-only Compose service described in [database setup](docs/database-setup.md). Edit `apps/api/.env` with your local values:
-
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Development PostgreSQL connection URL |
-| `TEST_DATABASE_URL` | Separate disposable test database URL |
-| `JWT_SECRET` | Random signing secret of at least 32 UTF-8 bytes |
-| `DEMO_PASSWORD` | Demo password: at least 12 characters, at most 72 UTF-8 bytes |
-| `PORT` | API port; default `3000` |
-| `NODE_ENV` | `development` for demo seeding |
-
-Generate a signing secret with `openssl rand -hex 32`. Replace the example values; keep your `.env` local.
-
-```sh
-cd apps/api
-npm run db:migrate
-npm run db:seed
-npm run dev
-```
-
-The seed creates Student A, Student B, a tutor, twenty race students, and two future slots. Accounts use your `DEMO_PASSWORD`:
-
-- `student.a@orbit.test`
-- `student.b@orbit.test`
-- `tutor@orbit.test`
-- `race.01@orbit.test` through `race.20@orbit.test`
-
-Open [API documentation](http://localhost:3000/docs) or [OpenAPI YAML](http://localhost:3000/openapi.yaml). The source contract is [`openapi.yaml`](openapi.yaml). `GET /health` confirms that the API process is running. The API start commands and database commands load `apps/api/.env`.
-
-Normal seeding preserves bookings. To refresh the demo slots, stop the API and run `npm run db:reset -- --confirm` from `apps/api`. Reset removes records belonging to the demo fixture, including other users' bookings on its two slots; see the exact scope in [database setup](docs/database-setup.md).
-
-## Run the complete milestone checks
-
-From the repository root, provide a separate disposable database:
-
-```sh
 export TEST_DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/orbit_test'
-npm --prefix apps/api run test:phase2
+npm run test:phase2
 ```
 
-The aggregate runs TypeScript checks, authentication, OpenAPI validation/conformance, database/repository, booking, integrated HTTP, race, and Mehjabin's core service and HTTP tests. All checks use the single `apps/api` package. Test commands read `TEST_DATABASE_URL` from the shell. Fixtures create isolated schemas and remove them afterward; the role must be allowed to create schemas and install `btree_gist` if it is not already available.
+The suite validates TypeScript and OpenAPI and exercises authentication, role and ownership checks, real PostgreSQL persistence, idempotency, and two booking races. Run `npm run test:race` for a standalone race. Each run sends 20 concurrent requests and expects one HTTP 201, nineteen HTTP 409 responses, and one confirmed appointment in PostgreSQL.
 
-For a repeatable standalone concurrency demonstration:
-
-```sh
-npm --prefix apps/api run test:race
-```
-
-Each run creates a fresh slot and twenty distinct students. It succeeds only with **one HTTP 201, nineteen HTTP 409 responses, and exactly one confirmed PostgreSQL appointment matching the winner**. This module harness uses test JWTs; the integration suite additionally exercises the real authentication and application wiring. Actual results and limitations belong in [the verification record](docs/phase2-verification.md).
+Follow the [short demo](docs/phase2-demo.md) for the full booking workflow. See the [verification record](docs/phase2-verification.md) for test evidence and the [documentation index](docs/README.md) for implementation details.
 
 ## API
 
@@ -79,8 +46,6 @@ Each run creates a fresh slot and twenty distinct students. It succeeds only wit
 Tutor IDs are **profile IDs**, distinct from user IDs. Requests and responses use camelCase, UUIDs and timezone-aware ISO 8601 timestamps; returned times are UTC. Protected operations use `Authorization: Bearer <token>`. Error responses use `{ "error": { "code", "message", "correlationId" } }`; `X-Request-Id` provides the request identifier.
 
 Booking returns `201` with `appointmentId`, `slotId` and `status`. The same user/key/input replays the original response. Reusing a key for different input returns `409 IDEMPOTENCY_CONFLICT`; another student booking an occupied slot receives `409 SLOT_ALREADY_BOOKED`. Cancellation returns `204`, including an owner's retry. Unknown or other-owned appointment IDs return `404` without revealing ownership. A cancelled slot is available again, while its historical appointment remains in PostgreSQL.
-
-Use [the short demo](docs/phase2-demo.md) for registration, login, tutor discovery, booking, ownership, cancellation, persistence and concurrency.
 
 ## Architecture
 
@@ -110,8 +75,4 @@ No controller contains SQL. Booking serializes the authenticated user/operation/
 | Azmain | PostgreSQL schema, repositories, migrations and seed/setup | `feature/8-postgresql-data-layer` |
 | Yousef | Atomic booking, locking, idempotency and race tests | `feature/5-atomic-booking` |
 
-The integration retains the teammates' source history and layered architecture. The branch names above identify source contributions; merged branches may be deleted after verification. The runnable code is consolidated under `apps/api`, with one dependency lockfile and no overlay-copy step. Branch integration, verification and GitHub merge status are recorded separately in [the verification record](docs/phase2-verification.md). AI-assisted work is documented in [Robayth's collaboration log](docs/robayth-ai-collaboration.md) and [Azmain's existing log](docs/azmain-ai-collaboration.md). Each teammate remains responsible for explaining their contribution during the milestone demonstration.
-
-## Later project work
-
-The issue-defined Phase 2 milestone does not include the React frontend, SmartMatch/waitlist, Resend email integration, transactional outbox/background retries, full application deployment/observability, final report or oral-defense materials. These remain Phase 3/final-project work. The database-only Compose service assists local setup; it is not a complete production deployment. No external-service integration is claimed by this milestone.
+The runnable API is under `apps/api`. [Robayth’s collaboration log](docs/robayth-ai-collaboration.md) and [Azmain’s collaboration log](docs/azmain-ai-collaboration.md) record AI-assisted work.
