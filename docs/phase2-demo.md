@@ -1,17 +1,18 @@
 # Phase 2 demonstration
 
-Allow five to seven minutes. Complete [setup](../README.md) with a dedicated demo database, migrations and seed data. Start the API from `apps/api` with `npm run dev`. Run the commands below in a second terminal **from the repository root**.
+Allow five to seven minutes. Run the commands from the repository root. Start and seed the service using the [Compose guide](member2-deployment.md) or the [local Node and PostgreSQL setup](database-setup.md). Keep the chosen demo password in the shell variable `DEMO_PASSWORD`. For local Node setup, use the value you configured in `apps/api/.env`.
 
 This is a repeatable demonstration procedure. Actual execution evidence is recorded in [the verification record](phase2-verification.md); the team still presents the milestone itself.
 
 ## 1. Show the running service and architecture
 
 ```sh
-export API_URL=http://localhost:3000
+export API_URL="http://localhost:${ORBIT_API_PORT:-3000}"
 curl -i "$API_URL/health"
+curl -i "$API_URL/ready"
 ```
 
-Open `http://localhost:3000/docs`. It is an offline-readable contract viewer, not an interactive request console. The source is [`openapi.yaml`](../openapi.yaml), also available at `/openapi.yaml`.
+Open `/docs` in your browser using the API base URL. The source is [`openapi.yaml`](../openapi.yaml), also available at `/openapi.yaml`.
 
 Show the eight auth/domain operations and explain:
 
@@ -33,10 +34,10 @@ curl -i "$API_URL/auth/register" \
 
 Expect `201`; repeating the normalized email returns `409`. The result contains `user`, **`token`**, `tokenType` and `expiresIn`, without password hashes. Tutor registration additionally requires `role: tutor` and `displayName`.
 
-Log in as the seeded tutor using the password from your local `.env`:
+Log in as the seeded tutor using `DEMO_PASSWORD`:
 
 ```sh
-node --env-file=apps/api/.env -e 'process.stdout.write(JSON.stringify({email:"tutor@orbit.test",password:process.env.DEMO_PASSWORD}))' |
+node -e 'process.stdout.write(JSON.stringify({email:"tutor@orbit.test",password:process.env.DEMO_PASSWORD}))' |
   curl -sS "$API_URL/auth/login" -H 'Content-Type: application/json' --data-binary @-
 ```
 
@@ -72,10 +73,11 @@ Log in as Student A using the same command as the tutor login, changing the emai
 
 ```sh
 export TOKEN_A='PASTE_STUDENT_A_TOKEN'
+BOOKING_KEY="phase2-demo-$(node -e 'process.stdout.write(crypto.randomUUID())')"
 curl -i "$API_URL/appointments" \
   -H "Authorization: Bearer $TOKEN_A" \
   -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: phase2-demo-1' \
+  -H "Idempotency-Key: $BOOKING_KEY" \
   --data "{\"slotId\":\"$SLOT_ID\",\"topic\":\"SOEN 387 concurrency demo\"}"
 ```
 
@@ -101,7 +103,7 @@ The deletion returns `404`. Student B booking the same occupied slot with a diff
 
 ## 5. Show persistence, cancellation, and rebooking
 
-Restart **only the API**, retaining PostgreSQL and its data. Log in again as Student A and show the same confirmed appointment in `/appointments`.
+Restart **only the API**, using `docker compose restart api` or restarting the local Node process. Keep PostgreSQL running. Log in again as Student A and show the same confirmed appointment in `/appointments`.
 
 ```sh
 curl -i -X DELETE "$API_URL/appointments/$APPOINTMENT_ID" \
@@ -116,8 +118,9 @@ A retry with the original successful booking key still returns its original stor
 
 ```sh
 export TEST_DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/orbit_test'
-npm --prefix apps/api run test:integration
-npm --prefix apps/api run test:race
+npm --prefix apps/api ci
+npm run test:integration
+npm run test:race
 ```
 
 The standalone race creates a disposable fixture. It must produce one `201`, nineteen `409` responses and exactly one confirmed PostgreSQL row. Explain why checking availability without a database lock would allow simultaneous requests to race. Booking and cancellation serialize on the same slot row; the partial unique index independently protects the invariant.
