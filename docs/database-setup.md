@@ -27,17 +27,18 @@ Use your actual role, password and port in the connection URLs. If a database al
 
 ### Option B: the supplied Compose database
 
-Run from the repository root. Choose your local database password and keep it available in this shell for subsequent Compose commands:
+Run from the repository root. Choose your local database password and keep both variables available in this shell for subsequent Compose commands. Compose reads the API service configuration even when starting only `db`, so it requires `JWT_SECRET` for these commands.
 
 ```sh
 export POSTGRES_PASSWORD='YOUR_LOCAL_DATABASE_PASSWORD'
+export JWT_SECRET="$(openssl rand -hex 32)"
 docker compose up -d --wait db
 docker compose exec -T db createdb -U orbit orbit_test
 ```
 
 The service creates the `orbit` development database with user `orbit`; the last command creates the separate test database. Run that command once; an "already exists" response means the test database is already present. Set `ORBIT_DB_PORT` before starting Compose if port `5432` is occupied, for example `export ORBIT_DB_PORT=55433`.
 
-Use your chosen password and host port in both `.env` connection URLs: database `orbit` for `DATABASE_URL`, and `orbit_test` for `TEST_DATABASE_URL`. Percent-encode reserved characters in a password embedded in a URL. The Compose volume preserves database contents when the container restarts. `docker compose stop db` stops it without deleting data. This setup starts PostgreSQL only; run the Node API separately.
+Use your chosen password and host port in both `apps/api/.env` connection URLs: database `orbit` for `DATABASE_URL`, and `orbit_test` for `TEST_DATABASE_URL`. Percent-encode reserved characters in a password embedded in a URL. The Compose volume preserves database contents when the container restarts. `docker compose stop db` stops it without deleting data. This setup starts PostgreSQL only; run the Node API separately.
 
 ### Install and configure the API
 
