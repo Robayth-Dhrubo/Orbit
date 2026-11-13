@@ -55,3 +55,29 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://orbit:orbit_test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/orbit_test
         run: npm run test:phase2
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_PASSWORD: orbit_ci_local_database_password_2026
+      JWT_SECRET: orbit_ci_only_jwt_secret_longer_than_32_chars
+      ORBIT_API_PORT: "3000"
+      ORBIT_DB_PORT: "5432"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Build and start PostgreSQL plus API
+        run: docker compose up --build -d --wait
+      - name: Check readiness, booking persistence and both container restarts
+        run: node scripts/verify-compose.mjs --already-up
+      - name: Stop containers without deleting persistent volumes
+        if: always()
+        run: docker compose down --remove-orphans

@@ -90,6 +90,7 @@ test("published OpenAPI validates and all eight application operations conform o
     await check("/appointments/10000000-0000-4000-8000-999999999999", "/appointments/{appointmentId}", "delete", 404, auth(student.token));
     assert.equal(observed.size, 8);
     await check("/health", "/health", "get", 200);
+    await check("/ready", "/ready", "get", 200);
     const published = await fetch(base + "/openapi.yaml");
     assert.equal(published.status, 200);
     assert.equal(await published.text(), await readFile(contractPath, "utf8"));

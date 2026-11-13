@@ -4,6 +4,8 @@ The runnable Phase 2 service lives here. Start with the [repository setup guide]
 
 The original core API modules now live in `src/team-api`, and their tests live in `test/core`.
 
+For the two-container API/PostgreSQL deployment, database-aware `/ready` check and restart verification, see [Member 2 deployment guide](../../docs/member2-deployment.md).
+
 ```sh
 npm ci
 cp .env.example .env

@@ -11,6 +11,7 @@
     "test:booking": "tsx --test test/booking.test.ts",
     "test:race": "tsx scripts/booking-race.ts",
     "test:database": "tsx --test test/database.test.ts",
+    "test:readiness": "tsx --test test/readiness.test.ts",
     "db:migrate": "node --env-file=.env --import tsx scripts/db-migrate.ts",
     "db:seed": "node --env-file=.env --import tsx scripts/db-seed.ts",
     "db:reset": "node --env-file=.env --import tsx scripts/db-seed.ts --reset",
@@ -21,7 +22,7 @@
     "test:contract": "tsx --test test/contract.test.ts",
     "validate:openapi": "tsx scripts/validate-openapi.ts",
     "test:team": "tsx --test test/core/*.test.ts",
-    "test:phase2": "npm run typecheck && npm run validate:openapi && npm run test:team && npm run test:auth && npm run test:contract && npm run test:database && npm run test:booking && npm run test:integration && npm run test:race && npm run test:race",
+    "test:phase2": "npm run typecheck && npm run validate:openapi && npm run test:team && npm run test:auth && npm run test:contract && npm run test:database && npm run test:readiness && npm run test:booking && npm run test:integration && npm run test:race && npm run test:race",
     "test": "npm run test:phase2"
   },
   "dependencies": {

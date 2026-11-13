@@ -272,6 +272,35 @@ paths:
                     type: string
                     enum:
                       - ok
+  /ready:
+    get:
+      summary: Check that PostgreSQL and required migrations are available
+      operationId: readiness
+      responses:
+        "200":
+          description: API can access PostgreSQL and required core schema
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [ready]
+        "503":
+          description: PostgreSQL or required database schema unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [not_ready]
 components:
   securitySchemes:
     bearerAuth:

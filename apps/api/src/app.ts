@@ -10,6 +10,7 @@ import { AppointmentServiceError } from "./team-api/services/appointments.servic
 import { createAppointmentRouter } from "./appointments/router.js";
 import { AppointmentError } from "./appointments/service.js";
 import { connectTeamServices } from "./integration/team-adapters.js";
+import { registerReadinessRoute } from "./database/readiness.js";
 
 export function createOrbitApp(pool: Pool, jwtSecret: string) {
   const app = express();
@@ -85,6 +86,7 @@ export function createOrbitApp(pool: Pool, jwtSecret: string) {
     } catch (error) { next(error); }
   });
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+  registerReadinessRoute(app, pool);
   app.use((_request, _response, next) => next(new AuthError(404, "NOT_FOUND", "Route not found.")));
 
   const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, next) => {

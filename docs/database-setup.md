@@ -154,3 +154,7 @@ npm run test:phase2
 The test database role needs permission to create test schemas; the database tests also require the extension setup above. Test commands use `TEST_DATABASE_URL` from the shell. They create and remove isolated schemas. `test:database` exercises the real migrations and repositories. The standalone booking/race harness uses its own fixture schema and test JWTs; `test:integration` exercises the real authentication and complete application. The race script creates its own users and slot rather than consuming the seeded demo accounts.
 
 Actual execution results and limitations are recorded in [`phase2-verification.md`](phase2-verification.md).
+
+## 6. Docker Compose with the API and database (Member 2 deployment)
+
+The earlier Compose instructions in section 1 start PostgreSQL only. For the new **two-container API + PostgreSQL setup**, health/readiness behavior, and API/database restart verification, follow [Member 2's deployment guide](member2-deployment.md). This uses an append-only migration sequence and preserves the named database volume across restarts. The new `/ready` endpoint checks PostgreSQL and migration readiness; `/health` only checks API liveness.
