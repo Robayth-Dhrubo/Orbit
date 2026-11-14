@@ -130,7 +130,9 @@ async function request<T>(
 
   const text = await response.text();
 
-  let data: any;
+  
+let data: unknown;
+
 
   try {
     data = text ? JSON.parse(text) : null;
@@ -143,14 +145,35 @@ async function request<T>(
   }
 
   // Handle API errors
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      data?.error?.code ?? 'API_ERROR',
-      data?.error?.message ??
-        `Request failed (${response.status})`
-    );
+
+if (!response.ok) {
+  let code = 'API_ERROR';
+  let message = `Request failed (${response.status})`;
+
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    'error' in data
+  ) {
+    const error = data.error;
+
+    if (error !== null && typeof error === 'object') {
+      if ('code' in error && typeof error.code === 'string') {
+        code = error.code;
+      }
+
+      if (
+        'message' in error &&
+        typeof error.message === 'string'
+      ) {
+        message = error.message;
+      }
+    }
   }
+
+  throw new ApiError(response.status, code, message);
+}
+
 
   return data as T;
 }
