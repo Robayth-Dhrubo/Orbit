@@ -51,9 +51,36 @@ export default function MyAppointments({
     }
   }, [session.token]);
 
-  useEffect(() => {
-    void loadAppointments();
-  }, [loadAppointments]);
+ 
+useEffect(() => {
+  let active = true;
+
+  getMyAppointments(session.token)
+    .then((data) => {
+      if (active) {
+        setAppointments(data);
+      }
+    })
+    .catch((err) => {
+      if (active) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to load appointments.'
+        );
+      }
+    })
+    .finally(() => {
+      if (active) {
+        setLoading(false);
+      }
+    });
+
+  return () => {
+    active = false;
+  };
+}, [session.token]);
+
 
   // Cancel an appointment through the real API
   async function handleCancel(
