@@ -50,7 +50,7 @@ Follow the [short demo](docs/demo.md) for the full booking workflow.
 - [Docker Compose setup](docs/setup/docker.md): API and PostgreSQL startup, readiness and restart checks.
 - [Database setup](docs/setup/database.md): local PostgreSQL, running the API without Docker, migrations, seed and reset.
 - [Demonstration guide](docs/demo.md): repeatable login, booking, authorization and concurrency demo.
-- AI collaboration logs: [Robayth](docs/ai-collaboration/robayth.md) and [Azmain](docs/ai-collaboration/azmain.md).
+- [AI collaboration log](docs/ai-collaboration.md): Robayth's and Azmain's records of AI-assisted work.
 
 ## Web client
 
@@ -120,4 +120,4 @@ No controller contains SQL. Booking serializes the authenticated user/operation/
 | Azmain | PostgreSQL schema, repositories, migrations and seed/setup | `feature/8-postgresql-data-layer` |
 | Yousef | Atomic booking, locking, idempotency and race tests | `feature/5-atomic-booking` |
 
-The runnable API is under `apps/api`. [Robayth’s collaboration log](docs/ai-collaboration/robayth.md) and [Azmain’s collaboration log](docs/ai-collaboration/azmain.md) record AI-assisted work.
+The runnable API is under `apps/api`. The [AI collaboration log](docs/ai-collaboration.md) records Robayth’s and Azmain’s AI-assisted work.
