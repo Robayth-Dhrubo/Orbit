@@ -1,9 +1,5 @@
-
-
 import MyAppointments from './MyAppointments';
-
 import TutorBrowser from './TutorBrowser';
-
 import TutorDashboard from './TutorDashboard';
 
 import { useState, type FormEvent } from 'react';
@@ -17,6 +13,16 @@ import {
 } from './api';
 
 type Mode = 'login' | 'register';
+type StudentView = 'browse' | 'appointments';
+
+function Brand() {
+  return (
+    <span className="brand">
+      <span className="brand-mark" aria-hidden="true" />
+      ORBIT
+    </span>
+  );
+}
 
 export default function App() {
   const [mode, setMode] = useState<Mode>('login');
@@ -29,9 +35,11 @@ export default function App() {
   const [session, setSession] =
     useState<AuthSession | null>(null);
 
+  const [studentView, setStudentView] =
+    useState<StudentView>('browse');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // Handle login and registration
   async function handleSubmit(
@@ -40,7 +48,6 @@ export default function App() {
     event.preventDefault();
 
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
@@ -62,14 +69,8 @@ export default function App() {
       }
 
       setSession(result);
+      setStudentView('browse');
       setPassword('');
-
-      setSuccess(
-        mode === 'login'
-          ? 'Login successful!'
-          : 'Account created successfully!'
-      );
-
     } catch (err) {
       setError(
         err instanceof Error
@@ -84,228 +85,271 @@ export default function App() {
   // Logout
   function handleLogout() {
     setSession(null);
+    setMode('login');
+    setRole('student');
     setEmail('');
     setPassword('');
     setDisplayName('');
     setError('');
-    setSuccess('');
   }
 
   // Logged-in interface
   if (session) {
-    return (
-      <main className="container">
-        <section className="card">
-          <h1>ORBIT</h1>
-          <h2>Welcome!</h2>
+    const isStudent = session.user.role === 'student';
 
-          {success && (
-            <p className="success">{success}</p>
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <Brand />
+
+          {isStudent && (
+            <nav className="topbar-nav" aria-label="Sections">
+              <button
+                type="button"
+                className={
+                  studentView === 'browse' ? 'active' : ''
+                }
+                aria-current={
+                  studentView === 'browse' ? 'page' : undefined
+                }
+                onClick={() => setStudentView('browse')}
+              >
+                Find a tutor
+              </button>
+
+              <button
+                type="button"
+                className={
+                  studentView === 'appointments' ? 'active' : ''
+                }
+                aria-current={
+                  studentView === 'appointments'
+                    ? 'page'
+                    : undefined
+                }
+                onClick={() => setStudentView('appointments')}
+              >
+                My appointments
+              </button>
+            </nav>
           )}
 
-          <p>
-            <strong>Email:</strong>{' '}
-            {session.user.email}
-          </p>
+          <div className="topbar-user">
+            <span className="user-email">
+              {session.user.email}
+            </span>
 
-          <p>
-            <strong>Role:</strong>{' '}
-            {session.user.role}
-          </p>
+            <span className={`role-pill role-${session.user.role}`}>
+              {isStudent ? 'Student' : 'Tutor'}
+            </span>
 
-          <p>
-            <strong>Authentication:</strong>{' '}
-            Successful
-          </p>
+            <button
+              type="button"
+              className="button-quiet"
+              onClick={handleLogout}
+            >
+              Sign out
+            </button>
+          </div>
+        </header>
 
-          <p>
-            You are connected to your ORBIT
-            account.
-          </p>
+        <main className="page">
+          {isStudent && studentView === 'browse' && (
+            <TutorBrowser
+              session={session}
+              onViewAppointments={() =>
+                setStudentView('appointments')
+              }
+            />
+          )}
 
+          {isStudent && studentView === 'appointments' && (
+            <MyAppointments session={session} />
+          )}
 
-{session.user.role === 'student' && (
-  <>
-    <TutorBrowser session={session} />
-    <MyAppointments session={session} />
-  </>
-)}
-
-
-
-{session.user.role === 'tutor' && (
-  <TutorDashboard session={session} />
-)}
-
-
-
-          <button
-            type="button"
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
-        </section>
-      </main>
+          {!isStudent && (
+            <TutorDashboard session={session} />
+          )}
+        </main>
+      </div>
     );
   }
 
   // Login and registration interface
   return (
-    <main className="container">
-      <section className="card">
-        <h1>ORBIT</h1>
+    <div className="auth">
+      <aside className="auth-side">
+        <Brand />
 
-        <p className="subtitle">
-          Tutor Appointment Booking System
-        </p>
+        <div className="auth-pitch">
+          <h1>Book a tutor in the time it takes to ask.</h1>
 
-        <h2>
-          {mode === 'login'
-            ? 'Login to Your Account'
-            : 'Create an Account'}
-        </h2>
-
-        <div className="tabs">
-          <button
-            type="button"
-            className={
-              mode === 'login' ? 'active' : ''
-            }
-            onClick={() => {
-              setMode('login');
-              setError('');
-            }}
-          >
-            Login
-          </button>
-
-          <button
-            type="button"
-            className={
-              mode === 'register' ? 'active' : ''
-            }
-            onClick={() => {
-              setMode('register');
-              setError('');
-            }}
-          >
-            Register
-          </button>
+          <p>
+            Tutors publish the hours they are free. Students
+            pick one. Each slot goes to exactly one student.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <div className="auth-orbits" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </aside>
 
-          {mode === 'register' && (
-            <>
-              <label htmlFor="role">
-                Account Type
-              </label>
+      <main className="auth-main">
+        <div className="auth-card">
+          <h2>
+            {mode === 'login'
+              ? 'Sign in to ORBIT'
+              : 'Create your account'}
+          </h2>
 
-              <select
-                id="role"
-                value={role}
-                onChange={(event) =>
-                  setRole(event.target.value as Role)
-                }
-              >
-                <option value="student">
-                  Student
-                </option>
+          <div className="segmented" role="group" aria-label="Account action">
+            <button
+              type="button"
+              className={
+                mode === 'login' ? 'active' : ''
+              }
+              aria-pressed={mode === 'login'}
+              onClick={() => {
+                setMode('login');
+                setError('');
+              }}
+            >
+              Sign in
+            </button>
 
-                <option value="tutor">
-                  Tutor
-                </option>
-              </select>
-            </>
-          )}
+            <button
+              type="button"
+              className={
+                mode === 'register' ? 'active' : ''
+              }
+              aria-pressed={mode === 'register'}
+              onClick={() => {
+                setMode('register');
+                setError('');
+              }}
+            >
+              Create account
+            </button>
+          </div>
 
-          {mode === 'register' &&
-            role === 'tutor' && (
-              <>
-                <label htmlFor="displayName">
-                  Tutor Name
+          <form onSubmit={handleSubmit}>
+
+            {mode === 'register' && (
+              <div className="field">
+                <label htmlFor="role">
+                  I am a
                 </label>
 
-                <input
-                  id="displayName"
-                  type="text"
-                  placeholder="Enter your name"
-                  value={displayName}
-                  maxLength={120}
+                <select
+                  id="role"
+                  value={role}
                   onChange={(event) =>
-                    setDisplayName(event.target.value)
+                    setRole(event.target.value as Role)
                   }
-                  required
-                />
-              </>
+                >
+                  <option value="student">
+                    Student
+                  </option>
+
+                  <option value="tutor">
+                    Tutor
+                  </option>
+                </select>
+              </div>
             )}
 
-          <label htmlFor="email">
-            Email Address
-          </label>
+            {mode === 'register' &&
+              role === 'tutor' && (
+                <div className="field">
+                  <label htmlFor="displayName">
+                    Name students will see
+                  </label>
 
-          <input
-            id="email"
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(event) =>
-              setEmail(event.target.value)
-            }
-            required
-          />
+                  <input
+                    id="displayName"
+                    type="text"
+                    placeholder="Dr. Amina Rahman"
+                    value={displayName}
+                    maxLength={120}
+                    onChange={(event) =>
+                      setDisplayName(event.target.value)
+                    }
+                    required
+                  />
+                </div>
+              )}
 
-          <label htmlFor="password">
-            Password
-          </label>
+            <div className="field">
+              <label htmlFor="email">
+                Email
+              </label>
 
-          <input
-            id="password"
-            type="password"
-            placeholder="Enter password"
-            value={password}
-            minLength={
-              mode === 'register' ? 12 : undefined
-            }
-            onChange={(event) =>
-              setPassword(event.target.value)
-            }
-            required
-          />
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                required
+              />
+            </div>
 
-          {mode === 'register' && (
-            <small>
-              Password must contain at least
-              12 characters.
-            </small>
-          )}
+            <div className="field">
+              <label htmlFor="password">
+                Password
+              </label>
 
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
+              <input
+                id="password"
+                type="password"
+                autoComplete={
+                  mode === 'register'
+                    ? 'new-password'
+                    : 'current-password'
+                }
+                value={password}
+                minLength={
+                  mode === 'register' ? 12 : undefined
+                }
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                required
+              />
 
-          {success && (
-            <p className="success">
-              {success}
-            </p>
-          )}
+              {mode === 'register' && (
+                <p className="hint">
+                  At least 12 characters.
+                </p>
+              )}
+            </div>
 
-          <button
-            type="submit"
-            className="submit"
-            disabled={loading}
-          >
-            {loading
-              ? 'Please wait...'
-              : mode === 'login'
-                ? 'Login'
-                : 'Create Account'}
-          </button>
-        </form>
-      </section>
-    </main>
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="button-primary button-block"
+              disabled={loading}
+            >
+              {loading
+                ? 'One moment...'
+                : mode === 'login'
+                  ? 'Sign in'
+                  : 'Create account'}
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
   );
 }

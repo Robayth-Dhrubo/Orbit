@@ -107,9 +107,7 @@ useEffect(() => {
         )
       );
 
-      setSuccess(
-        'Appointment cancelled successfully.'
-      );
+      setSuccess('Session cancelled. The slot is open again.');
 
       // Refresh the records from PostgreSQL
       try {
@@ -133,105 +131,124 @@ useEffect(() => {
     }
   }
 
+  // Upcoming sessions first, cancelled ones after
+  const ordered = [...appointments].sort(
+    (a, b) =>
+      Number(a.status !== 'confirmed') -
+      Number(b.status !== 'confirmed')
+  );
+
   return (
     <section className="appointments-section">
-      <h2>My Appointments</h2>
+      <header className="page-head page-head-row">
+        <div>
+          <h1>My appointments</h1>
+          <p>Sessions you have booked, and any you cancelled.</p>
+        </div>
 
-      <p>
-        View and manage your tutoring sessions.
-      </p>
-
-      <button
-        type="button"
-        className="refresh-button"
-        disabled={loading || cancellingId !== null}
-        onClick={() => {
-          setSuccess('');
-          void loadAppointments();
-        }}
-      >
-        {loading ? 'Loading...' : 'Refresh Appointments'}
-      </button>
+        <button
+          type="button"
+          className="button-quiet"
+          disabled={loading || cancellingId !== null}
+          onClick={() => {
+            setSuccess('');
+            void loadAppointments();
+          }}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </header>
 
       {error && (
-        <p className="error" role="alert">
+        <p className="notice notice-error" role="alert">
           {error}
         </p>
       )}
 
       {success && (
-        <p className="success" role="status">
+        <p className="notice notice-success" role="status">
           {success}
         </p>
       )}
 
       {loading && (
-        <p>Loading your appointments...</p>
+        <p className="muted">Loading your appointments...</p>
       )}
 
       {!loading &&
         !error &&
         appointments.length === 0 && (
-          <p>You have no appointments yet.</p>
+          <div className="panel empty">
+            <h2>No sessions yet</h2>
+            <p className="muted">
+              Book a slot under Find a tutor and it will show
+              up here.
+            </p>
+          </div>
         )}
 
-      {!loading && appointments.map(appointment => (
-        <div
-          className="appointment-item"
-          key={appointment.appointmentId}
-        >
-          <h3>
-            {appointment.topic}
-          </h3>
-
-          <p>
-            <strong>Appointment ID:</strong>{' '}
-            {appointment.appointmentId}
-          </p>
-
-          <p>
-            <strong>Slot ID:</strong>{' '}
-            {appointment.slotId}
-          </p>
-
-          <p>
-            <strong>Status:</strong>{' '}
-            <span
+      {!loading && ordered.length > 0 && (
+        <ul className="appointment-list">
+          {ordered.map(appointment => (
+            <li
               className={
                 appointment.status === 'confirmed'
-                  ? 'status-confirmed'
-                  : 'status-cancelled'
+                  ? 'appointment-item'
+                  : 'appointment-item is-cancelled'
               }
+              key={appointment.appointmentId}
             >
-              {appointment.status}
-            </span>
-          </p>
+              <div className="appointment-main">
+                <h2>{appointment.topic}</h2>
 
-          {appointment.notes && (
-            <p>
-              <strong>Notes:</strong>{' '}
-              {appointment.notes}
-            </p>
-          )}
+                {appointment.notes && (
+                  <p className="appointment-notes">
+                    {appointment.notes}
+                  </p>
+                )}
 
-          {appointment.status === 'confirmed' && (
-            <button
-              type="button"
-              className="cancel-button"
-              disabled={cancellingId !== null}
-              onClick={() => {
-                void handleCancel(
-                  appointment.appointmentId
-                );
-              }}
-            >
-              {cancellingId === appointment.appointmentId
-                ? 'Cancelling...'
-                : 'Cancel Appointment'}
-            </button>
-          )}
-        </div>
-      ))}
+                <p
+                  className="appointment-ref"
+                  title={`Appointment ${appointment.appointmentId}, slot ${appointment.slotId}`}
+                >
+                  Reference {appointment.appointmentId.slice(0, 8)}
+                </p>
+              </div>
+
+              <div className="appointment-side">
+                <span
+                  className={
+                    appointment.status === 'confirmed'
+                      ? 'status status-confirmed'
+                      : 'status status-cancelled'
+                  }
+                >
+                  {appointment.status === 'confirmed'
+                    ? 'Confirmed'
+                    : 'Cancelled'}
+                </span>
+
+                {appointment.status === 'confirmed' && (
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={cancellingId !== null}
+                    onClick={() => {
+                      void handleCancel(
+                        appointment.appointmentId
+                      );
+                    }}
+                  >
+                    {cancellingId === appointment.appointmentId
+                      ? 'Cancelling...'
+                      : 'Cancel session'}
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

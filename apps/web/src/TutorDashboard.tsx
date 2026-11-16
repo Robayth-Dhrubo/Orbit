@@ -10,6 +10,8 @@ import {
   type Slot
 } from './api';
 
+import { formatTimeRange, groupSlotsByDay } from './format';
+
 interface Props {
   session: AuthSession;
 }
@@ -121,7 +123,7 @@ export default function TutorDashboard({ session }: Props) {
         session.token
       );
 
-      setSuccess('Availability published successfully!');
+      setSuccess('Slot published. Students can book it now.');
       setStartTime('');
       setEndTime('');
 
@@ -138,133 +140,147 @@ export default function TutorDashboard({ session }: Props) {
     }
   }
 
-  function formatTime(value: string) {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? 'Invalid date'
-      : date.toLocaleString();
-  }
+  const days = groupSlotsByDay(slots);
 
   if (loading) {
-    return <p>Loading tutor profiles...</p>;
+    return <p className="muted">Loading tutor profiles...</p>;
   }
 
   return (
     <section className="tutor-dashboard">
-      <h2>Tutor Dashboard</h2>
-
-      <p>
-        Signed in as: <strong>{session.user.email}</strong>
-      </p>
-
-      <label htmlFor="tutor-profile">
-        Select Your Tutor Profile
-      </label>
-
-      <select
-        id="tutor-profile"
-        value={tutor?.id ?? ''}
-        onChange={event => {
-          void selectTutorProfile(event.target.value);
-        }}
-      >
-        <option value="">Choose your profile</option>
-
-        {tutors.map(item => (
-          <option key={item.id} value={item.id}>
-            {item.displayName}
-          </option>
-        ))}
-      </select>
-
-      {tutors.length === 0 && (
-        <p>No tutor profiles are available.</p>
-      )}
-
-      <p className="subtitle">
-        Select only your own tutor profile.
-        The backend verifies ownership before
-        allowing availability changes.
-      </p>
+      <header className="page-head">
+        <h1>Your availability</h1>
+        <p>Publish the hours you are free. Each slot can be booked once.</p>
+      </header>
 
       {error && (
-        <p className="error" role="alert">
+        <p className="notice notice-error" role="alert">
           {error}
         </p>
       )}
 
       {success && (
-        <p className="success" role="status">
+        <p className="notice notice-success" role="status">
           {success}
         </p>
       )}
 
-      {tutor && (
-        <>
-          <h3>Publish Availability</h3>
+      <div className="split">
+        <div className="panel">
+          <h2>Publish a slot</h2>
 
-          <form onSubmit={handleCreateSlot}>
-            <label htmlFor="startTime">
-              Start Time
+          <div className="field">
+            <label htmlFor="tutor-profile">
+              Your tutor profile
             </label>
 
-            <input
-              id="startTime"
-              type="datetime-local"
-              value={startTime}
-              onChange={event =>
-                setStartTime(event.target.value)
-              }
-              required
-            />
-
-            <label htmlFor="endTime">
-              End Time
-            </label>
-
-            <input
-              id="endTime"
-              type="datetime-local"
-              value={endTime}
-              onChange={event =>
-                setEndTime(event.target.value)
-              }
-              required
-            />
-
-            <button
-              type="submit"
-              className="submit"
-              disabled={saving || loadingSlots}
+            <select
+              id="tutor-profile"
+              value={tutor?.id ?? ''}
+              onChange={event => {
+                void selectTutorProfile(event.target.value);
+              }}
             >
-              {saving
-                ? 'Publishing...'
-                : 'Publish Available Slot'}
-            </button>
-          </form>
+              <option value="">Choose your profile</option>
 
-          <h3>Available Slots</h3>
+              {tutors.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.displayName}
+                </option>
+              ))}
+            </select>
 
-          {loadingSlots && <p>Loading slots...</p>}
+            <p className="hint">
+              {tutors.length === 0
+                ? 'No tutor profiles exist yet.'
+                : 'ORBIT checks the profile is yours before it publishes anything.'}
+            </p>
+          </div>
 
-          {!loadingSlots && slots.length === 0 && (
-            <p>No available slots yet.</p>
+          {tutor && (
+            <form onSubmit={handleCreateSlot}>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="startTime">
+                    Starts
+                  </label>
+
+                  <input
+                    id="startTime"
+                    type="datetime-local"
+                    value={startTime}
+                    onChange={event =>
+                      setStartTime(event.target.value)
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="endTime">
+                    Ends
+                  </label>
+
+                  <input
+                    id="endTime"
+                    type="datetime-local"
+                    value={endTime}
+                    onChange={event =>
+                      setEndTime(event.target.value)
+                    }
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="button-primary"
+                disabled={saving || loadingSlots}
+              >
+                {saving
+                  ? 'Publishing...'
+                  : 'Publish slot'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="panel">
+          <h2>Your open slots</h2>
+
+          {!tutor && (
+            <p className="muted">
+              Choose your profile to see the slots students can
+              still book.
+            </p>
           )}
 
-          {slots.map(slot => (
-            <div className="slot-item" key={slot.id}>
-              <p>
-                <strong>Start:</strong>{' '}
-                {formatTime(slot.startTime)}
-              </p>
-              <p>
-                <strong>End:</strong>{' '}
-                {formatTime(slot.endTime)}
-              </p>
+          {tutor && loadingSlots && (
+            <p className="muted">Loading slots...</p>
+          )}
+
+          {tutor && !loadingSlots && slots.length === 0 && (
+            <p className="muted">
+              Nothing open yet. Publish your first slot.
+            </p>
+          )}
+
+          {tutor && days.map(day => (
+            <div className="slot-day" key={day.key}>
+              <h3>{day.label}</h3>
+
+              <div className="slot-chips">
+                {day.slots.map(slot => (
+                  <span className="slot-chip is-static" key={slot.id}>
+                    {formatTimeRange(slot)}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
-        </>
-      )}
+        </div>
+      </div>
     </section>
   );
 }
