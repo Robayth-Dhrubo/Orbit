@@ -182,18 +182,30 @@ export default function App() {
         <Brand />
 
         <div className="auth-pitch">
-          <h1>Book a tutor in the time it takes to ask.</h1>
+          <h1>Find an hour with a tutor.</h1>
 
           <p>
-            Tutors publish the hours they are free. Students
-            pick one. Each slot goes to exactly one student.
+            Tutors post the hours they are free. Pick one and
+            it is yours. No slot is ever given to two students.
           </p>
         </div>
 
-        <div className="auth-orbits" aria-hidden="true">
-          <span />
-          <span />
-          <span />
+        <div className="hero-table" aria-hidden="true">
+          <div className="hero-days">
+            <span>Mon</span>
+            <span>Tue</span>
+            <span>Wed</span>
+            <span>Thu</span>
+          </div>
+
+          <div className="hero-grid">
+            <span className="hero-block b1" />
+            <span className="hero-block b2" />
+            <span className="hero-block b3 is-yours">Yours</span>
+            <span className="hero-block b4" />
+            <span className="hero-block b5" />
+            <span className="hero-block b6 is-taken" />
+          </div>
         </div>
       </aside>
 

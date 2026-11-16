@@ -15,11 +15,9 @@ import {
   type Slot
 } from './api';
 
-import {
-  formatDay,
-  formatTimeRange,
-  groupSlotsByDay
-} from './format';
+import { formatDay, formatTimeRange } from './format';
+
+import SlotTimetable from './SlotTimetable';
 
 interface Props {
   session: AuthSession;
@@ -261,8 +259,6 @@ export default function TutorBrowser({
     }
   }
 
-  const days = groupSlotsByDay(slots);
-
   return (
     <section className="tutor-browser">
 
@@ -278,7 +274,7 @@ export default function TutorBrowser({
         </p>
       )}
 
-      <div className="split">
+      <div className="split split-rail">
 
         <div className="panel">
           <h2>Tutors</h2>
@@ -369,31 +365,13 @@ export default function TutorBrowser({
                   </p>
                 )}
 
-              {/* Display slots, grouped by day */}
-              {days.map(day => (
-                <div className="slot-day" key={day.key}>
-                  <h3>{day.label}</h3>
-
-                  <div className="slot-chips">
-                    {day.slots.map(slot => (
-                      <button
-                        type="button"
-                        key={slot.id}
-                        className={
-                          selectedSlot?.id === slot.id
-                            ? 'slot-chip active'
-                            : 'slot-chip'
-                        }
-                        aria-pressed={selectedSlot?.id === slot.id}
-                        disabled={booking}
-                        onClick={() => selectSlot(slot)}
-                      >
-                        {formatTimeRange(slot)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {/* Display slots as a timetable */}
+              <SlotTimetable
+                slots={slots}
+                selectedId={selectedSlot?.id ?? null}
+                disabled={booking}
+                onSelect={selectSlot}
+              />
             </>
           )}
 

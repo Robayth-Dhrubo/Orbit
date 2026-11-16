@@ -10,7 +10,7 @@ import {
   type Slot
 } from './api';
 
-import { formatTimeRange, groupSlotsByDay } from './format';
+import SlotTimetable from './SlotTimetable';
 
 interface Props {
   session: AuthSession;
@@ -140,8 +140,6 @@ export default function TutorDashboard({ session }: Props) {
     }
   }
 
-  const days = groupSlotsByDay(slots);
-
   if (loading) {
     return <p className="muted">Loading tutor profiles...</p>;
   }
@@ -266,19 +264,9 @@ export default function TutorDashboard({ session }: Props) {
             </p>
           )}
 
-          {tutor && days.map(day => (
-            <div className="slot-day" key={day.key}>
-              <h3>{day.label}</h3>
-
-              <div className="slot-chips">
-                {day.slots.map(slot => (
-                  <span className="slot-chip is-static" key={slot.id}>
-                    {formatTimeRange(slot)}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+          {tutor && !loadingSlots && (
+            <SlotTimetable slots={slots} />
+          )}
         </div>
       </div>
     </section>
