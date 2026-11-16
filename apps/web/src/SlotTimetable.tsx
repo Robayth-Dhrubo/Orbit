@@ -138,10 +138,12 @@ export default function SlotTimetable({
                   </>
                 );
 
+                const size = visible < 45 ? ' is-short' : '';
+
                 if (!onSelect) {
                   return (
                     <div
-                      className="slot-block is-static"
+                      className={`slot-block is-static${size}`}
                       style={blockStyle}
                       key={slot.id}
                     >
@@ -155,8 +157,8 @@ export default function SlotTimetable({
                     type="button"
                     className={
                       selectedId === slot.id
-                        ? 'slot-block active'
-                        : 'slot-block'
+                        ? `slot-block active${size}`
+                        : `slot-block${size}`
                     }
                     style={blockStyle}
                     aria-pressed={selectedId === slot.id}

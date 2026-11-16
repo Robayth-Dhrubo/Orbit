@@ -524,7 +524,7 @@ textarea:focus {
 }
 
 .page {
-  max-width: 1180px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 48px 40px 72px;
 }
@@ -562,7 +562,11 @@ textarea:focus {
 }
 
 .split-rail {
-  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+}
+
+.tutor-dashboard .split {
+  grid-template-columns: minmax(0, 21rem) minmax(0, 1fr);
 }
 
 .panel > h2 {
@@ -602,7 +606,8 @@ textarea:focus {
   background: var(--green-wash);
 }
 
-.tutor-row.active {
+.tutor-row.active,
+.tutor-row.active:hover:not(:disabled) {
   background: var(--highlight);
 }
 
@@ -647,7 +652,7 @@ textarea:focus {
 .timetable {
   --head: 3.75rem;
   display: grid;
-  grid-template-columns: 3.75rem repeat(var(--days), minmax(8.5rem, 1fr));
+  grid-template-columns: 3.75rem repeat(var(--days), minmax(7.25rem, 1fr));
   overflow-x: auto;
   padding-bottom: 4px;
 }
@@ -696,6 +701,7 @@ textarea:focus {
     transparent 1px
   );
   background-size: 100% var(--hour-px);
+  border-bottom: 1px solid var(--line);
 }
 
 .timetable-day:last-child .timetable-track {
@@ -720,6 +726,15 @@ textarea:focus {
   background: var(--surface);
   text-align: left;
   line-height: 1.25;
+}
+
+/* Slots under 45 minutes are too shallow for two lines. */
+.slot-block.is-short {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  padding-block: 3px;
+  white-space: nowrap;
 }
 
 .slot-start {
@@ -773,11 +788,14 @@ button.slot-block.active:hover:not(:disabled) {
 
 /* Appointments: each one a slip with a tear-off stub */
 
+.appointments-section {
+  max-width: 56rem;
+}
+
 .appointment-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 52rem;
 }
 
 .appointment-item {
@@ -908,7 +926,8 @@ button.slot-block.active:hover:not(:disabled) {
   }
 
   .split,
-  .split-rail {
+  .split-rail,
+  .tutor-dashboard .split {
     grid-template-columns: 1fr;
     gap: 32px;
   }
@@ -946,6 +965,7 @@ button.slot-block.active:hover:not(:disabled) {
 
   .timetable-day h3 {
     flex-direction: row;
+    justify-content: flex-start;
     align-items: baseline;
     gap: 8px;
     height: auto;
@@ -962,10 +982,16 @@ button.slot-block.active:hover:not(:disabled) {
     background: none;
   }
 
-  .slot-block {
+  .slot-block,
+  .slot-block.is-short {
     position: static;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
     height: auto;
     margin: 0;
+    padding-block: 6px;
+    white-space: normal;
   }
 
   .appointment-item {
