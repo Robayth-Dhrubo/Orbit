@@ -1,8 +1,8 @@
 # Phase 2 demonstration
 
-Allow five to seven minutes. Run the commands from the repository root. Start and seed the service using the [Compose guide](../setup/docker.md) or the [local Node and PostgreSQL setup](../setup/database.md). Keep the chosen demo password in the shell variable `DEMO_PASSWORD`. For local Node setup, use the value you configured in `apps/api/.env`.
+Allow five to seven minutes. Run the commands from the repository root. Start and seed the service using the [Compose guide](setup/docker.md) or the [local Node and PostgreSQL setup](setup/database.md). Keep the chosen demo password in the shell variable `DEMO_PASSWORD`. For local Node setup, use the value you configured in `apps/api/.env`.
 
-This is a repeatable demonstration procedure. Actual execution evidence is recorded in [the verification record](verification.md); the team still presents the milestone itself.
+This is a repeatable demonstration procedure; the team still presents the milestone itself.
 
 ## 1. Show the running service and architecture
 
@@ -12,7 +12,7 @@ curl -i "$API_URL/health"
 curl -i "$API_URL/ready"
 ```
 
-Open `/docs` in your browser using the API base URL. The source is [`openapi.yaml`](../../openapi.yaml), also available at `/openapi.yaml`.
+Open `/docs` in your browser using the API base URL. The source is [`openapi.yaml`](../openapi.yaml), also available at `/openapi.yaml`.
 
 Show the eight auth/domain operations and explain:
 
@@ -137,4 +137,4 @@ npm --prefix apps/api run db:reset -- --confirm
 
 Reset removes demo students' bookings/keys and bookings using the two seeded slots, including other users' bookings on those slots. Normal `db:seed` preserves bookings. The automated race does not consume seeded slots.
 
-Record the tested revision, database version, commands and results in the verification record. Frontend, email integration and production deployment remain later-phase work.
+Email integration and production deployment remain later-phase work.
