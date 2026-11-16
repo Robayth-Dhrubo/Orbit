@@ -15,8 +15,13 @@ import {
   type Slot
 } from './api';
 
+import { formatDay, formatTimeRange } from './format';
+
+import SlotTimetable from './SlotTimetable';
+
 interface Props {
   session: AuthSession;
+  onViewAppointments?: () => void;
 }
 
 interface BookingAttempt {
@@ -26,7 +31,10 @@ interface BookingAttempt {
   key: string;
 }
 
-export default function TutorBrowser({ session }: Props) {
+export default function TutorBrowser({
+  session,
+  onViewAppointments
+}: Props) {
 
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -185,7 +193,7 @@ export default function TutorBrowser({ session }: Props) {
 
       // Booking completed successfully
       setBookingSuccess(
-        `Appointment confirmed! ID: ${result.appointmentId}`
+        `Session booked. Reference ${result.appointmentId.slice(0, 8)}.`
       );
 
       setSelectedSlot(null);
@@ -251,214 +259,216 @@ export default function TutorBrowser({ session }: Props) {
     }
   }
 
-  // Format appointment date and time
-  function formatDate(value: string) {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return 'Invalid date';
-    }
-
-    return date.toLocaleString();
-  }
-
   return (
     <section className="tutor-browser">
 
-      <h2>Find a Tutor</h2>
-
-      <p>
-        Browse available tutors and book a session.
-      </p>
-
-      {/* Loading state */}
-      {loading && (
-        <p>Loading tutors...</p>
-      )}
+      <header className="page-head">
+        <h1>Find a tutor</h1>
+        <p>Choose a tutor, then pick one of their open slots.</p>
+      </header>
 
       {/* Tutor loading errors */}
       {error && (
-        <p className="error" role="alert">
+        <p className="notice notice-error" role="alert">
           {error}
         </p>
       )}
 
-      {/* Empty tutor list */}
-      {!loading &&
-        !error &&
-        tutors.length === 0 && (
-          <p>No tutors available yet.</p>
-        )}
+      <div className="split split-rail">
 
-      {/* Display actual tutor profiles */}
-      {tutors.map(tutor => (
+        <div className="panel">
+          <h2>Tutors</h2>
 
-        <div
-          className="tutor-item"
-          key={tutor.id}
-        >
-
-          <h3>{tutor.displayName}</h3>
-
-          {tutor.bio && (
-            <p>{tutor.bio}</p>
+          {loading && (
+            <p className="muted">Loading tutors...</p>
           )}
 
-          <button
-            type="button"
-            disabled={loadingSlots || booking}
-            onClick={() => viewSlots(tutor)}
-          >
-            View Available Slots
-          </button>
+          {/* Empty tutor list */}
+          {!loading &&
+            !error &&
+            tutors.length === 0 && (
+              <p className="muted">
+                No tutors have joined yet. Check back soon.
+              </p>
+            )}
 
+          {/* Display actual tutor profiles */}
+          <ul className="tutor-list">
+            {tutors.map(tutor => (
+              <li key={tutor.id}>
+                <button
+                  type="button"
+                  className={
+                    selectedTutor?.id === tutor.id
+                      ? 'tutor-row active'
+                      : 'tutor-row'
+                  }
+                  aria-pressed={selectedTutor?.id === tutor.id}
+                  disabled={loadingSlots || booking}
+                  onClick={() => viewSlots(tutor)}
+                >
+                  <span className="avatar" aria-hidden="true">
+                    {tutor.displayName.trim().charAt(0).toUpperCase()}
+                  </span>
+
+                  <span className="tutor-text">
+                    <span className="tutor-name">
+                      {tutor.displayName}
+                    </span>
+
+                    {tutor.bio && (
+                      <span className="tutor-bio">
+                        {tutor.bio}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
-      ))}
 
-      {/* Available appointment slots */}
-      {selectedTutor && (
+        <div className="panel">
 
-        <div className="slots-section">
-
-          <h3>
-            Available Slots — {selectedTutor.displayName}
-          </h3>
-
-          {loadingSlots && (
-            <p>Loading available slots...</p>
+          {!selectedTutor && (
+            <div className="empty">
+              <h2>Open slots</h2>
+              <p className="muted">
+                Select a tutor to see when they are free.
+              </p>
+            </div>
           )}
 
-          {slotError && (
-            <p className="error" role="alert">
-              {slotError}
+          {/* Available appointment slots */}
+          {selectedTutor && (
+            <>
+              <h2>
+                Open slots with {selectedTutor.displayName}
+              </h2>
+
+              {loadingSlots && (
+                <p className="muted">Loading open slots...</p>
+              )}
+
+              {slotError && (
+                <p className="notice notice-error" role="alert">
+                  {slotError}
+                </p>
+              )}
+
+              {!loadingSlots &&
+                !slotError &&
+                slots.length === 0 && (
+                  <p className="muted">
+                    {selectedTutor.displayName} has no open
+                    slots right now.
+                  </p>
+                )}
+
+              {/* Display slots as a timetable */}
+              <SlotTimetable
+                slots={slots}
+                selectedId={selectedSlot?.id ?? null}
+                disabled={booking}
+                onSelect={selectSlot}
+              />
+            </>
+          )}
+
+          {/* Student booking form */}
+          {selectedSlot && (
+
+            <div className="booking-form">
+
+              <h3>
+                Book {formatDay(selectedSlot.startTime)},{' '}
+                {formatTimeRange(selectedSlot)}
+              </h3>
+
+              <form onSubmit={handleBooking}>
+
+                <div className="field">
+                  <label htmlFor="booking-topic">
+                    What do you want to work on?
+                  </label>
+
+                  <input
+                    id="booking-topic"
+                    type="text"
+                    placeholder="Integration by parts"
+                    value={topic}
+                    maxLength={200}
+                    onChange={event =>
+                      setTopic(event.target.value)
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="booking-notes">
+                    Notes for the tutor (optional)
+                  </label>
+
+                  <textarea
+                    id="booking-notes"
+                    placeholder="Anything the tutor should know before the session"
+                    value={notes}
+                    maxLength={4000}
+                    rows={3}
+                    onChange={event =>
+                      setNotes(event.target.value)
+                    }
+                  />
+                </div>
+
+                {bookingError && (
+                  <p className="notice notice-error" role="alert">
+                    {bookingError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={booking}
+                >
+                  {booking
+                    ? 'Booking...'
+                    : 'Book session'}
+                </button>
+
+              </form>
+
+            </div>
+          )}
+
+          {/* Booking confirmation */}
+          {bookingSuccess && (
+            <div className="notice notice-success" role="status">
+              <span>{bookingSuccess}</span>
+
+              {onViewAppointments && (
+                <button
+                  type="button"
+                  className="button-link"
+                  onClick={onViewAppointments}
+                >
+                  View my appointments
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Booking errors outside the form */}
+          {!selectedSlot && bookingError && (
+            <p className="notice notice-error" role="alert">
+              {bookingError}
             </p>
           )}
 
-          {!loadingSlots &&
-            !slotError &&
-            slots.length === 0 && (
-              <p>
-                No available slots for this tutor.
-              </p>
-            )}
-
-          {/* Display slots */}
-          {slots.map(slot => (
-
-            <div
-              className="slot-item"
-              key={slot.id}
-            >
-
-              <p>
-                <strong>Start:</strong>{' '}
-                {formatDate(slot.startTime)}
-              </p>
-
-              <p>
-                <strong>End:</strong>{' '}
-                {formatDate(slot.endTime)}
-              </p>
-
-              <button
-                type="button"
-                disabled={booking}
-                onClick={() => selectSlot(slot)}
-              >
-                Select & Book
-              </button>
-
-            </div>
-          ))}
-
         </div>
-      )}
-
-      {/* Student booking form */}
-      {selectedSlot && (
-
-        <div className="booking-form">
-
-          <h3>Book Appointment</h3>
-
-          <p>
-            <strong>Selected Date:</strong>{' '}
-            {formatDate(selectedSlot.startTime)}
-          </p>
-
-          <form onSubmit={handleBooking}>
-
-            <label htmlFor="booking-topic">
-              Session Topic
-            </label>
-
-            <input
-              id="booking-topic"
-              type="text"
-              placeholder="e.g. Calculus Integration"
-              value={topic}
-              maxLength={200}
-              onChange={event =>
-                setTopic(event.target.value)
-              }
-              required
-            />
-
-            <label htmlFor="booking-notes">
-              Additional Notes (Optional)
-            </label>
-
-            <textarea
-              id="booking-notes"
-              placeholder="What do you need help with?"
-              value={notes}
-              maxLength={4000}
-              rows={4}
-              onChange={event =>
-                setNotes(event.target.value)
-              }
-            />
-
-            {bookingError && (
-              <p className="error" role="alert">
-                {bookingError}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="submit"
-              disabled={booking}
-            >
-              {booking
-                ? 'Booking...'
-                : 'Confirm Booking'}
-            </button>
-
-          </form>
-
-        </div>
-      )}
-
-      {/* Booking confirmation */}
-      {bookingSuccess && (
-
-        <p
-          className="success"
-          role="status"
-        >
-          {bookingSuccess}
-        </p>
-
-      )}
-
-      {/* Booking errors outside the form */}
-      {!selectedSlot && bookingError && (
-        <p className="error" role="alert">
-          {bookingError}
-        </p>
-      )}
-
+      </div>
     </section>
   );
 }
