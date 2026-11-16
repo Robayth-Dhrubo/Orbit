@@ -1,6 +1,6 @@
 # Azmain: issue #8 implementation record
 
-This historical record describes AI-assisted work for the PostgreSQL/schema/repository task before full team integration. Current completion and test evidence are in [the Phase 2 verification record](phase2-verification.md); the handoff notes below describe the state at the original contribution.
+This historical record describes AI-assisted work for the PostgreSQL/schema/repository task before full team integration. Current completion and test evidence are in [the Phase 2 verification record](../phase2/verification.md); the handoff notes below describe the state at the original contribution.
 It is not a claim that Azmain independently wrote or has already reviewed every
 line. The implementation and explanations should be reviewed before the team
 submits its individual contribution statement.

@@ -17,9 +17,9 @@ The operative repository requirements were checked on **November 12, 2026** agai
 | Booking survives API restart | Integrated persistence check and demo procedure |
 | Tested local startup and viewable contract | README, database setup, demo and verification record |
 | Individual source contributions and understandable integration | Git history, branch/PR mapping and collaboration logs |
-| Live team demonstration | Procedure in `phase2-demo.md`; the team performs/presents it |
+| Live team demonstration | Procedure in `demo.md`; the team performs/presents it |
 
-A listed implementation or test is not itself proof of a passing run. See [`phase2-verification.md`](phase2-verification.md) for actual commands, results and merge state.
+A listed implementation or test is not itself proof of a passing run. See [`verification.md`](verification.md) for actual commands, results and merge state.
 
 ## Scope boundary
 

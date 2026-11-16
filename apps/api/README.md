@@ -1,10 +1,10 @@
 # ORBIT API
 
-The runnable Phase 2 service lives here. Start with the [repository setup guide](../../README.md) and [database instructions](../../docs/database-setup.md). Node.js 22+ and PostgreSQL are required. Install the locked dependencies once in `apps/api`. The API uses a layered Express and TypeScript architecture with centralized error handling and correlation IDs; its entrypoint serves `GET /health` and `GET /openapi.yaml`.
+The runnable Phase 2 service lives here. Start with the [repository setup guide](../../README.md) and [database instructions](../../docs/setup/database.md). Node.js 22+ and PostgreSQL are required. Install the locked dependencies once in `apps/api`. The API uses a layered Express and TypeScript architecture with centralized error handling and correlation IDs; its entrypoint serves `GET /health` and `GET /openapi.yaml`.
 
 The original core API modules now live in `src/team-api`, and their tests live in `test/core`.
 
-For the two-container API/PostgreSQL deployment, database-aware `/ready` check and restart verification, see [Member 2 deployment guide](../../docs/member2-deployment.md).
+For the two-container API/PostgreSQL deployment, database-aware `/ready` check and restart verification, see [Docker Compose guide](../../docs/setup/docker.md).
 
 ```sh
 npm ci
@@ -35,7 +35,7 @@ npm run test:phase2
 | `test:team` | Core service and HTTP tests in `test/core` |
 | `test:phase2` | All milestone checks from this single package, including two fresh race runs |
 
-The [verification record](../../docs/phase2-verification.md) records actual execution results. The [demo](../../docs/phase2-demo.md) exercises the service manually. API documentation is available at `/docs`; the source is [`../../openapi.yaml`](../../openapi.yaml), served at `/openapi.yaml`.
+The [verification record](../../docs/phase2/verification.md) records actual execution results. The [demo](../../docs/phase2/demo.md) exercises the service manually. API documentation is available at `/docs`; the source is [`../../openapi.yaml`](../../openapi.yaml), served at `/openapi.yaml`.
 
 ## Booking transaction contract
 

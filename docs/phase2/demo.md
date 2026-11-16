@@ -1,8 +1,8 @@
 # Phase 2 demonstration
 
-Allow five to seven minutes. Run the commands from the repository root. Start and seed the service using the [Compose guide](member2-deployment.md) or the [local Node and PostgreSQL setup](database-setup.md). Keep the chosen demo password in the shell variable `DEMO_PASSWORD`. For local Node setup, use the value you configured in `apps/api/.env`.
+Allow five to seven minutes. Run the commands from the repository root. Start and seed the service using the [Compose guide](../setup/docker.md) or the [local Node and PostgreSQL setup](../setup/database.md). Keep the chosen demo password in the shell variable `DEMO_PASSWORD`. For local Node setup, use the value you configured in `apps/api/.env`.
 
-This is a repeatable demonstration procedure. Actual execution evidence is recorded in [the verification record](phase2-verification.md); the team still presents the milestone itself.
+This is a repeatable demonstration procedure. Actual execution evidence is recorded in [the verification record](verification.md); the team still presents the milestone itself.
 
 ## 1. Show the running service and architecture
 
@@ -12,7 +12,7 @@ curl -i "$API_URL/health"
 curl -i "$API_URL/ready"
 ```
 
-Open `/docs` in your browser using the API base URL. The source is [`openapi.yaml`](../openapi.yaml), also available at `/openapi.yaml`.
+Open `/docs` in your browser using the API base URL. The source is [`openapi.yaml`](../../openapi.yaml), also available at `/openapi.yaml`.
 
 Show the eight auth/domain operations and explain:
 

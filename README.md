@@ -2,7 +2,7 @@
 
 ORBIT is a tutoring appointment REST service for **SOEN 387, Fall 2026**. The November 12 milestone covers a running Express/TypeScript API, JWT authentication, PostgreSQL persistence, a published OpenAPI contract, and concurrency-safe booking.
 
-The milestone scope is recorded in [issue #4](https://github.com/Robayth-Dhrubo/Orbit/issues/4) and its four implementation tasks. See [the requirements checklist](docs/phase2-requirements.md), [the demonstration guide](docs/phase2-demo.md), and [the verification record](docs/phase2-verification.md) for scope and execution evidence.
+The milestone scope is recorded in [issue #4](https://github.com/Robayth-Dhrubo/Orbit/issues/4) and its four implementation tasks. See [the requirements checklist](docs/phase2/requirements.md), [the demonstration guide](docs/phase2/demo.md), and [the verification record](docs/phase2/verification.md) for scope and execution evidence.
 
 ## Run Phase 2
 
@@ -14,7 +14,7 @@ docker compose up --build -d --wait
 curl -fsS http://localhost:3000/ready
 ```
 
-The API applies the SQL migrations at startup. Open [API documentation](http://localhost:3000/docs) or [OpenAPI YAML](http://localhost:3000/openapi.yaml). If you change `ORBIT_API_PORT`, use that port in the URLs. For demo accounts, restart checks, and setup without the API container, see the [Compose guide](docs/member2-deployment.md) and [database setup](docs/database-setup.md).
+The API applies the SQL migrations at startup. Open [API documentation](http://localhost:3000/docs) or [OpenAPI YAML](http://localhost:3000/openapi.yaml). If you change `ORBIT_API_PORT`, use that port in the URLs. For demo accounts, restart checks, and setup without the API container, see the [Compose guide](docs/setup/docker.md) and [database setup](docs/setup/database.md).
 
 ## Test and demo
 
@@ -28,7 +28,30 @@ npm run test:phase2
 
 The suite validates TypeScript and OpenAPI and exercises authentication, role and ownership checks, real PostgreSQL persistence, idempotency, and two booking races. Run `npm run test:race` for a standalone race. Each run sends 20 concurrent requests and expects one HTTP 201, nineteen HTTP 409 responses, and one confirmed appointment in PostgreSQL.
 
-Follow the [short demo](docs/phase2-demo.md) for the full booking workflow. See the [verification record](docs/phase2-verification.md) for test evidence and the [documentation index](docs/README.md) for implementation details.
+Follow the [short demo](docs/phase2/demo.md) for the full booking workflow. See the [verification record](docs/phase2/verification.md) for test evidence and the [documentation index](docs/README.md) for implementation details.
+
+## Web client
+
+`apps/web` is a small React + Vite client for exercising the API by hand: register or log in, browse tutors and slots, book and cancel as a student, and publish availability as a tutor. With the API running on port 3000:
+
+```sh
+npm --prefix apps/web ci
+npm --prefix apps/web run dev
+```
+
+Open http://localhost:5173. The dev server forwards `/api` requests to `http://localhost:3000`.
+
+## Repository layout
+
+```text
+apps/api/      Express/TypeScript service, tests and scripts
+apps/web/      React + Vite test client
+database/      ordered SQL migrations
+docs/          setup guides, Phase 2 records and AI collaboration logs
+openapi.yaml   published API contract
+compose.yaml   API + PostgreSQL for local runs
+scripts/       Compose verification script
+```
 
 ## API
 
@@ -75,4 +98,4 @@ No controller contains SQL. Booking serializes the authenticated user/operation/
 | Azmain | PostgreSQL schema, repositories, migrations and seed/setup | `feature/8-postgresql-data-layer` |
 | Yousef | Atomic booking, locking, idempotency and race tests | `feature/5-atomic-booking` |
 
-The runnable API is under `apps/api`. [Robayth’s collaboration log](docs/robayth-ai-collaboration.md) and [Azmain’s collaboration log](docs/azmain-ai-collaboration.md) record AI-assisted work.
+The runnable API is under `apps/api`. [Robayth’s collaboration log](docs/ai-collaboration/robayth.md) and [Azmain’s collaboration log](docs/ai-collaboration/azmain.md) record AI-assisted work.
