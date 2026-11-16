@@ -2,7 +2,7 @@
 
 ORBIT is a tutoring appointment REST service for **SOEN 387, Fall 2026**. The November 12 milestone covers a running Express/TypeScript API, JWT authentication, PostgreSQL persistence, a published OpenAPI contract, and concurrency-safe booking.
 
-The milestone scope is recorded in [issue #4](https://github.com/Robayth-Dhrubo/Orbit/issues/4) and its four implementation tasks. See [the requirements checklist](docs/phase2/requirements.md), [the demonstration guide](docs/phase2/demo.md), and [the verification record](docs/phase2/verification.md) for scope and execution evidence.
+The milestone scope is recorded in [issue #4](https://github.com/Robayth-Dhrubo/Orbit/issues/4) and its four implementation tasks. The [demonstration guide](docs/demo.md) walks through the full booking workflow.
 
 ## Run Phase 2
 
@@ -28,7 +28,29 @@ npm run test:phase2
 
 The suite validates TypeScript and OpenAPI and exercises authentication, role and ownership checks, real PostgreSQL persistence, idempotency, and two booking races. Run `npm run test:race` for a standalone race. Each run sends 20 concurrent requests and expects one HTTP 201, nineteen HTTP 409 responses, and one confirmed appointment in PostgreSQL.
 
-Follow the [short demo](docs/phase2/demo.md) for the full booking workflow. See the [verification record](docs/phase2/verification.md) for test evidence and the [documentation index](docs/README.md) for implementation details.
+`test:phase2` runs these `apps/api` commands in order; each can also be run on its own from `apps/api`:
+
+| Command | Purpose |
+|---|---|
+| `typecheck` | API TypeScript validation |
+| `validate:openapi` | Published OpenAPI validity |
+| `test:team` | Core service and HTTP tests in `test/core` |
+| `test:auth` | Credentials, tokens and public auth response checks |
+| `test:contract` | Contract and response conformance |
+| `test:database` | Real migrations, seed/reset, constraints and repositories |
+| `test:readiness` | Liveness versus database readiness |
+| `test:booking` | Atomic booking, cancellation, replay and rollback |
+| `test:integration` | Full application against real PostgreSQL and JWT middleware |
+| `test:race` | Twenty distinct students compete for a fresh slot |
+
+Follow the [short demo](docs/demo.md) for the full booking workflow.
+
+## Documentation
+
+- [Docker Compose setup](docs/setup/docker.md): API and PostgreSQL startup, readiness and restart checks.
+- [Database setup](docs/setup/database.md): local PostgreSQL, running the API without Docker, migrations, seed and reset.
+- [Demonstration guide](docs/demo.md): repeatable login, booking, authorization and concurrency demo.
+- AI collaboration logs: [Robayth](docs/ai-collaboration/robayth.md) and [Azmain](docs/ai-collaboration/azmain.md).
 
 ## Web client
 
@@ -47,7 +69,7 @@ Open http://localhost:5173. The dev server forwards `/api` requests to `http://l
 apps/api/      Express/TypeScript service, tests and scripts
 apps/web/      React + Vite test client
 database/      ordered SQL migrations
-docs/          setup guides, Phase 2 records and AI collaboration logs
+docs/          setup guides, demo script and AI collaboration logs
 openapi.yaml   published API contract
 compose.yaml   API + PostgreSQL for local runs
 scripts/       Compose verification script

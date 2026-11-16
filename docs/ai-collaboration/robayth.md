@@ -38,4 +38,4 @@ The prior documentation described planned architecture and pending module integr
 
 The operative requirement source for this run was the repository issues. No original instructor handout was present in the inspected ORBIT directories. Foreign-service email/outbox, frontend, full deployment and final-report work are not represented as completed by the backend milestone.
 
-AI-generated changes were reviewed and exercised where recorded. [`verification.md`](../phase2/verification.md) is the factual record of actual commands/results and merge state. This log does not itself certify passing tests or a delivered classroom presentation. Every teammate remains responsible for understanding and explaining the submitted code.
+AI-generated changes were reviewed and exercised where recorded. This log does not itself certify passing tests or a delivered classroom presentation. Every teammate remains responsible for understanding and explaining the submitted code.
